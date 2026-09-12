@@ -1,6 +1,6 @@
 """
 title: The Sentinel
-author: kozmos
+author: Faruk Hancı
 version: 1.0.0
 description: Read and write an Obsidian vault through seven primitives.
 requirements:
