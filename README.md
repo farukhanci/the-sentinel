@@ -177,6 +177,23 @@ Context size is a per-model measurement, not a constant. `CONTEXT_TOKENS` in
 17000 gave CUDA OOM, and the two models in use run at 12288 and 35000.
 Measure yours.
 
+## Models
+
+Three roles, three models, because they are three different jobs. These are
+what the numbers in this file were measured on — substitute your own, but the
+context sizes are per-model measurements rather than settings you can copy.
+
+| Role | Model | Context | Notes |
+| --- | --- | --- | --- |
+| Conversation | `hf.co/AtomicChat/Ornith-1.5-9B-GGUF:IQ4_XS` | 35000 | temperature 0.6, top_p 0.95, top_k 20, min_p 0, max_tokens 3000, num_gpu 256 |
+| Concept extraction | `qwen3.5-9b-jinja` | 8192 | local work, windowed |
+| Summaries | `qwen3.5-4b-xl` | 120000 | whole document in one call |
+| Embeddings | multilingual-e5-small (ONNX) | — | CPU, 384-dim |
+
+The analysis pass runs with thinking off. With it on, the model produced 5620
+tokens for a two-field JSON object; turning it off took generation from 184
+seconds to 2.5.
+
 ## Setup
 
 ```bash
@@ -215,6 +232,12 @@ exclude, and the path to the embedding model. Leave the index path empty
 unless you have a reason — empty means the tool derives it the same way every
 other entry point does, and a second copy of that path is how the index once
 split in two.
+
+Then give the model the system prompt in `openwebui_system_prompt.txt`. It is
+not optional decoration: it is where the ladder is explained, where writing is
+tied to the user asking for it rather than the model deciding, and where the
+status markers are defined. Without it the model has seven tools and no idea
+when to stop.
 
 Reloading matters. Open WebUI caches tool modules, so an edit on the host is
 silently ignored and the old code keeps answering. The tool file drops
@@ -278,9 +301,13 @@ take minutes.
 
 [The Searcher](https://github.com/farukhanci/the-searcher) is a separate
 service that researches a question on the web and writes verified passages
-into the vault's `sources/` directory. The Sentinel does not call it and does
-not depend on it — they are two tool servers registered separately in Open
-WebUI, and the model decides which one a question needs.
+into the vault's `sources/` directory. Neither repository imports the other.
+
+What joins them is the system prompt, which describes `research` alongside
+the seven vault primitives and says when each applies: the vault first, the
+web only when the user asks for it, and an empty vault is not itself a reason
+to go looking. Run the Sentinel without the Searcher and everything works
+except that one tool.
 
 ## License
 
