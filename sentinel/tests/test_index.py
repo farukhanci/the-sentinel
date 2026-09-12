@@ -88,6 +88,13 @@ for _m in (_chat, _maint):
     src = _i.getsource(_m)
     ok(f"{_m.__name__.split('.')[-1]} uses it",
        "default_db(vault)" in src and ".sentinel.db" not in src)
+
+# The Open WebUI tool file is the third entry point. It lives outside the
+# package and cannot be imported here, so its source is read instead - it
+# once carried its own hardcoded copy of this path.
+_tool = (Path(__file__).resolve().parents[2] / "openwebui_tool.py").read_text()
+ok("the Open WebUI tool file uses it too",
+   "default_db(vault)" in _tool and "/vault/.sentinel/index.db" not in _tool)
 ok("and it is inside the vault, so the walk skips it",
    default_db("/x/vault").name.startswith("index")
    and default_db("/x/vault").parent.name.startswith("."))

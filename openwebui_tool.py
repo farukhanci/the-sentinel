@@ -50,13 +50,15 @@ class Tools:
             description="The vault path AS SEEN INSIDE THE CONTAINER.",
         )
         db_path: str = Field(
-            default="/vault/.sentinel/index.db",
-            description="Where the derived index lives. Inside the vault by "
-            "default so it survives a container rebuild; it is derived data "
-            "and a full rebuild is always possible.",
+            default="",
+            description="Where the derived index lives. Leave empty to use "
+            "the one path the rest of the system derives from the vault - "
+            "set it only to override. It sits inside the vault so it survives "
+            "a container rebuild; it is derived data and a full rebuild is "
+            "always possible.",
         )
         exclude: str = Field(
-            default="agent_workspace",
+            default="",
             description="Comma-separated folders to leave out of the index. "
             "Dot-folders are always skipped.",
         )
@@ -76,7 +78,7 @@ class Tools:
     def _sentinel(self):
         if self._s is not None:
             return self._s
-        from sentinel.index import Index
+        from sentinel.index import Index, default_db
         from sentinel.tools import Sentinel
 
         vault = Path(self.valves.vault)
@@ -85,7 +87,9 @@ class Tools:
                 f"vault not found at {vault} inside the container - check the "
                 f"bind mount"
             )
-        db = Path(self.valves.db_path)
+        # One place decides this path. A second copy of it here is exactly
+        # how the index split in two before: both halves worked, separately.
+        db = Path(self.valves.db_path) if self.valves.db_path else default_db(vault)
         db.parent.mkdir(parents=True, exist_ok=True)
         idx = Index(
             vault,
