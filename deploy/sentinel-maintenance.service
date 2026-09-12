@@ -1,0 +1,18 @@
+[Unit]
+Description=The Sentinel - vault maintenance
+Documentation=https://github.com/farukhanci/the-sentinel
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/the-sentinel
+Environment=PYTHONPATH=%h/the-sentinel
+# Low priority: this is a laptop and the run takes minutes. It should lose
+# every scheduling contest with whatever the user is actually doing.
+Nice=10
+IOSchedulingClass=idle
+# Model names are local Ollama tags - substitute your own. The context sizes
+# were measured on a 6 GB card; lower them on a smaller one. The embed model is
+# the one setting not to change casually: a different model invalidates every
+# stored vector and forces a full re-embed of the vault.
+ExecStart=/usr/bin/python3 -m sentinel.maintain --vault %h/obsidian/Obsidian-1 --model qwen3.5-9b-jinja:latest --embed-model %h/models/multilingual-e5-small --num-ctx 8192 --concepts 5 --summary-model qwen3.5-4b-xl --summary-num-ctx 120000 --minutes 30.0
+TimeoutStartSec=3600

@@ -1,0 +1,14 @@
+[Unit]
+Description=The Sentinel - nightly vault maintenance
+
+[Timer]
+OnCalendar=23:00
+# The machine is a laptop and is not always awake at 23:00. Without this the
+# job is simply skipped, which over a month means it never runs at all.
+Persistent=true
+# So several sleeping machines do not all wake and start at once, and so a
+# missed run does not begin the instant the lid opens.
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target
