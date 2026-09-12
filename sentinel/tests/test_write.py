@@ -39,7 +39,7 @@ ok("expect is required", S.write("wiki/new.md", "x").startswith("[RETRY]"))
 ok("creating something that exists is refused",
    S.write("wiki/afterglow.md", "x", expect="new").startswith("[RETRY]"))
 ok("writing to something that does not exist is refused",
-   S.write("wiki/ghost.md", "x", where="whole", expect="abc123").startswith("[RETRY]"))
+   S.write("notes/ghost.md", "x", where="whole", expect="abc123").startswith("[RETRY]"))
 
 h = idx.meta("wiki/afterglow.md")["content_hash"][:8]
 stale = S.write("wiki/afterglow.md", "x", where="whole", expect="deadbeef")
@@ -48,67 +48,67 @@ ok("a stale expect is refused and names both hashes",
 ok("the refusal hands back enough to merge from", "It follows the burst" in stale)
 
 # --- creating -------------------------------------------------------------
-r = S.write("wiki/jet break.md",
+r = S.write("notes/jet break.md",
             "# jet break\n\nThe light curve steepens when the cone widens.",
             expect="new")
 ok("a new page is created", r.startswith("[DONE] created"), r)
 ok("where is ignored on a page that does not exist yet",
-   (vault / "wiki" / "jet break.md").exists())
+   (vault / "notes" / "jet break.md").exists())
 
-row = idx.meta("wiki/jet break.md")
+row = idx.meta("notes/jet break.md")
 ok("a page can never be written without a summary", bool(row["summary"]), str(dict(row)))
 ok("that summary is marked provisional", row["summary_provisional"] == 1)
 ok("the provisional summary is the first sentence, verbatim",
    row["summary"].startswith("The light curve steepens"), row["summary"])
 ok("code sets created, updated and origin",
-   "created:" in (vault / "wiki" / "jet break.md").read_text()
-   and "origin: conversation" in (vault / "wiki" / "jet break.md").read_text())
+   "created:" in (vault / "notes" / "jet break.md").read_text()
+   and "origin: conversation" in (vault / "notes" / "jet break.md").read_text())
 ok("the write is announced with the new expect value", "expect " in r)
 ok("and says the page is queued for analysis", "provisional summary" in r)
 
 # --- the page's own frontmatter, set as it is created --------------------
-r = S.write("wiki/afterglow shock.md",
+r = S.write("notes/afterglow shock.md",
             "---\ntype: concept\ntags: astro, shocks\n---\n\n"
             "# afterglow shock\n\nThe boundary that lights up.", expect="new")
 ok("a page can be created as a concept, not only as a note",
-   idx.meta("wiki/afterglow shock.md")["type"] == "concept", r)
+   idx.meta("notes/afterglow shock.md")["type"] == "concept", r)
 ok("and its tags come with it",
    {t["tag"] for t in idx.db.execute(
-       "SELECT tag FROM tags WHERE path='wiki/afterglow shock.md'")}
+       "SELECT tag FROM tags WHERE path='notes/afterglow shock.md'")}
    == {"astro", "shocks"})
 ok("the body is the body, frontmatter is not duplicated into it",
    "type: concept" not in idx.db.execute(
-       "SELECT content FROM chunks WHERE path='wiki/afterglow shock.md' "
+       "SELECT content FROM chunks WHERE path='notes/afterglow shock.md' "
        "AND is_summary=0").fetchone()["content"])
 ok("code still owns created, updated and origin",
-   all(k in (vault / "wiki" / "afterglow shock.md").read_text()
+   all(k in (vault / "notes" / "afterglow shock.md").read_text()
        for k in ("created:", "updated:", "origin:")))
 
 for owned in ("summary", "origin", "created"):
-    r = S.write(f"wiki/try-{owned}.md",
+    r = S.write(f"notes/try-{owned}.md",
                 f"---\ntype: concept\n{owned}: mine\n---\n\n# t\n\nText.",
                 expect="new")
     ok(f"setting {owned} in the content is refused", r.startswith("[STOP]"), r)
-    ok(f"and the page is not created", not (vault / f"wiki/try-{owned}.md").exists())
+    ok(f"and the page is not created", not (vault / f"notes/try-{owned}.md").exists())
 
-r = S.write("wiki/plain.md", "# plain\n\nNo frontmatter here.", expect="new")
+r = S.write("notes/plain.md", "# plain\n\nNo frontmatter here.", expect="new")
 ok("content with no frontmatter still works",
-   idx.meta("wiki/plain.md")["type"] == "note", r)
+   idx.meta("notes/plain.md")["type"] == "note", r)
 ok("and its body survives intact",
-   "No frontmatter here" in (vault / "wiki" / "plain.md").read_text())
+   "No frontmatter here" in (vault / "notes" / "plain.md").read_text())
 
 # --- a page written in conversation is marked as such --------------------
 ok("read meta says where the page came from",
-   "from conversation" in S.read("wiki/plain.md"), S.read("wiki/plain.md"))
+   "from conversation" in S.read("notes/plain.md"), S.read("notes/plain.md"))
 ok("and so does a listing line",
-   "(from conversation)" in S.listing(by="path", value="wiki"),
-   S.listing(by="path", value="wiki"))
+   "(from conversation)" in S.listing(by="path", value="notes"),
+   S.listing(by="path", value="notes"))
 
-(vault / "wiki" / "sourced.md").write_text(
+(vault / "notes" / "sourced.md").write_text(
     "---\ntype: source\nsummary: From a paper.\nsummary_provisional: 0\n"
     "origin: source\n---\n\n# sourced\n\nText.\n", encoding="utf-8")
 idx.sync()
-line = [x for x in S.listing(by="path", value="wiki").splitlines()
+line = [x for x in S.listing(by="path", value="notes").splitlines()
         if "sourced" in x]
 ok("a sourced page carries no such mark",
    line and "from conversation" not in line[0], str(line))
@@ -116,17 +116,24 @@ ok("a sourced page carries no such mark",
 # --- a folderless path lands in the pages folder, not the vault root -----
 r = S.write("loose.md", "# loose\n\nA finding with no folder given.",
             expect="new")
-ok("a page with no folder goes to wiki/", "wiki/loose.md" in r, r)
+ok("a page with no folder goes to the notes folder",
+   "notes/loose.md" in r, r)
 ok("and not to the vault root", not (vault / "loose.md").exists())
 
 # --- one place decides where a write lands -------------------------------
 ok("a folderless path resolves to the pages folder",
-   S.write_path("loose2.md") == "wiki/loose2.md", S.write_path("loose2.md"))
+   S.write_path("loose2.md") == "notes/loose2.md", S.write_path("loose2.md"))
 ok("a path with a folder is left alone",
    S.write_path("wiki/x.md") == "wiki/x.md")
 ok("and the same rule decides what write does",
-   "wiki/loose2.md" in S.write("loose2.md", "# l\n\nText here.",
-                               expect="new"))
+   "notes/loose2.md" in S.write("loose2.md", "# l\n\nText here.",
+                                expect="new"))
+
+# --- the concept folder is not the model's to write in -------------------
+out = S.write("wiki/GRB.md", "# GRB\n\nA burst.", expect="new")
+ok("writing into the concept folder is refused", out.startswith("[STOP]"), out)
+ok("and it says where to write instead", "notes/ instead" in out, out)
+ok("nothing was created there", not (vault / "wiki" / "GRB.md").exists())
 
 # --- a conversation record cannot be written to ---------------------------
 (vault / "conversations").mkdir(exist_ok=True)
@@ -142,11 +149,19 @@ for label, kw in (("rewritten", dict(where="whole", expect=h)),
     ok(f"a record cannot be {label}", out.startswith("[STOP]"), out)
 ok("nor can a new page be created beside one",
    S.write("conversations/rec-2.md", "x", expect="new").startswith("[STOP]"))
+
+_fresh = Sentinel(Index(vault.parent / "fresh", vault.parent / "fresh.db"))
+(vault.parent / "fresh" / "notes").mkdir(parents=True, exist_ok=True)
+_fresh.index.sync()
+ok("and the folder is refused on a vault with no record in it yet",
+   _fresh.write("conversations/first.md", "# f\n\nText here.",
+                expect="new").startswith("[STOP]"),
+   _fresh.write("conversations/first.md", "# f\n\nText here.", expect="new"))
 ok("the refusal is [STOP], because no rephrasing would work",
    "[RETRY]" not in S.write("conversations/rec-1.md", "x", where="end",
                             expect=h))
 ok("and it says where the finding should go instead",
-   "wiki/ instead" in S.write("conversations/rec-1.md", "x", where="end",
+   "notes/ instead" in S.write("conversations/rec-1.md", "x", where="end",
                               expect=h))
 ok("the record itself is untouched",
    "Said a thing." in (vault / "conversations" / "rec-1.md").read_text())
@@ -155,7 +170,10 @@ ok("the record itself is untouched",
 from ..schema import schemas as _schemas  # noqa: E402
 
 _w = [x for x in _schemas(Sentinel) if x["name"] == "write"][0]["description"]
-ok("the tool says pages go in wiki/", "wiki/<name>.md" in _w, _w[:200])
+ok("the tool says conversation pages go in notes/",
+   "notes/<name>.md" in _w, _w[:300])
+ok("and that the concept folder is refused",
+   "refused" in " ".join(_w.split()), _w[:300])
 ok("and says not the vault root", "vault root" in _w)
 _flat = " ".join(_w.split())
 ok("the line is drawn at the source, not the speaker",
@@ -169,22 +187,22 @@ ok("and says to do it in one call",
    "ONE call" in _w and "Do not search first" in _w)
 
 # --- a conversation page grows instead of refusing the second write ------
-r1 = S.write("wiki/finding.md", "# finding\n\nThe first thing we settled.",
+r1 = S.write("notes/finding.md", "# finding\n\nThe first thing we settled.",
              expect="new")
 ok("the first write creates it", r1.startswith("[DONE] created"), r1)
-r2 = S.write("wiki/finding.md", "The second thing, weeks later.", expect="new")
+r2 = S.write("notes/finding.md", "The second thing, weeks later.", expect="new")
 ok("the second write adds rather than being refused",
    r2.startswith("[DONE] added to"), r2)
-grown = (vault / "wiki" / "finding.md").read_text()
+grown = (vault / "notes" / "finding.md").read_text()
 ok("the first writing survives", "The first thing we settled." in grown, grown)
 ok("and the second is a section under it",
    grown.index("first thing") < grown.index("second thing"), grown)
 ok("with a dated heading written by code, not by the model",
    "\n## 20" in grown, grown)
 
-r3 = S.write("wiki/finding.md", "## My own heading\n\nMore.", expect="new")
+r3 = S.write("notes/finding.md", "## My own heading\n\nMore.", expect="new")
 ok("a heading the model supplied is kept",
-   "## My own heading" in (vault / "wiki" / "finding.md").read_text())
+   "## My own heading" in (vault / "notes" / "finding.md").read_text())
 
 (vault / "wiki" / "sourced2.md").write_text(
     "---\ntype: note\norigin: source\nsummary: From a paper.\n"
@@ -194,12 +212,12 @@ ok("a page that did NOT come from conversation is still refused",
    S.write("wiki/sourced2.md", "x", expect="new").startswith("[RETRY]"))
 
 # --- idempotency ----------------------------------------------------------
-again = S.write("wiki/jet break.md",
+again = S.write("notes/jet break.md",
                 "The light curve steepens when the cone widens.", expect="new")
 ok("repeating the same content adds nothing",
    again.startswith("[DONE]") and "already says this" in again, again)
 ok("and the body is not duplicated",
-   (vault / "wiki" / "jet break.md").read_text().split("---", 2)[2]
+   (vault / "notes" / "jet break.md").read_text().split("---", 2)[2]
    .count("steepens") == 1)
 
 # --- section, end, frontmatter -------------------------------------------
@@ -269,7 +287,7 @@ ok("the links now resolve to the new name",
    idx.db.execute("SELECT resolved FROM links WHERE target_key=?",
                   (normalize("afterglow emission"),)).fetchone()["resolved"] == 1)
 ok("relocating onto an existing path is refused",
-   S.relocate("wiki/cites.md", "wiki/jet break.md").startswith("[RETRY]"))
+   S.relocate("wiki/cites.md", "notes/jet break.md").startswith("[RETRY]"))
 ok("relocating something that is not there is [STOP]",
    S.relocate("wiki/ghost.md", "wiki/x.md").startswith("[STOP]"))
 

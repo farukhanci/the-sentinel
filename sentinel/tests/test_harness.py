@@ -127,14 +127,14 @@ ok("different arguments are not the same call",
 v, idx, S = fresh()
 h = Harness(S, ScriptedModel(
     [call("listing", by="recent")],
-    [call("write", path="wiki/new.md", content="# new\n\nText.", expect="new")],
+    [call("write", path="notes/new.md", content="# new\n\nText.", expect="new")],
     [call("listing", by="recent")],
     "done"))
 t = h.ask("list, write, list again")
 ok("the write succeeded", t.steps[1].result.startswith("[DONE]"), t.steps[1].result)
 ok("the same listing is allowed again after the vault changed",
    t.steps[2].result.startswith("[OK]"), t.steps[2].result)
-ok("and it sees the new page", "wiki/new.md" in t.steps[2].result)
+ok("and it sees the new page", "notes/new.md" in t.steps[2].result)
 
 # --- the step limit -------------------------------------------------------
 loop = [[call("read", path="afterglow", from_part=i)] for i in range(1, 12)]

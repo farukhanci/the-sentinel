@@ -186,8 +186,13 @@ def _defining(model, name: str, chunks: list[tuple[str, str]]) -> dict:
 
 
 def write_concept(sentinel, key: str, display: str, model,
-                  folder: str = "wiki") -> dict:
+                  folder: str | None = None) -> dict:
     idx = sentinel.index
+    # ASK THE SENTINEL WHERE ITS CONCEPT FOLDER IS rather than repeating the
+    # default here. Two places deciding one path is how the maintenance pass
+    # and the chat interface ended up on two different index databases -
+    # both working, separately, and invisible to each other.
+    folder = sentinel.concepts if folder is None else folder
     result = {"concept": display, "status": "skipped", "note": "",
               "sources": 0, "sentences": 0}
 
@@ -336,7 +341,7 @@ def _first_sentence(body: str, cap: int = 300) -> str:
     return ((text[:m.start()] if m else text)[:cap]).strip() or "(no text)"
 
 
-def run_concepts(sentinel, model, limit: int = 5, folder: str = "wiki",
+def run_concepts(sentinel, model, limit: int = 5, folder: str | None = None,
                  verbose: bool = True, release: bool = True) -> list[dict]:
     """One maintenance pass: write what can be written, grow what has moved.
 

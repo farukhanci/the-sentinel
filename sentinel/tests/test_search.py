@@ -147,6 +147,43 @@ ok("search degrades to literal-only without an encoder",
    == {"wiki/jets.md", "wiki/draft.md"},
    str([h.path for h in search(idx, "jet break", encoder=None, limit=3)]))
 
+# --- a filed source is held to the deeper rung, like a record -------------
+qv = tmp / "quiet"
+for d in ("notes", "sources", "conversations"):
+    (qv / d).mkdir(parents=True)
+(qv / "notes" / "kept.md").write_text(
+    "---\ntype: note\nsummary: What was decided about shocks.\n"
+    "summary_provisional: 0\n---\n\n# kept\n\nThe forward shock matters.\n",
+    encoding="utf-8")
+(qv / "sources" / "paper.md").write_text(
+    "---\ntype: source\nsummary: A filed paper.\nsummary_provisional: 0\n"
+    "---\n\n# paper\n\nThe forward shock is the outward boundary, and the "
+    "Sedov length appears only here.\n", encoding="utf-8")
+(qv / "conversations" / "c1.md").write_text(
+    "---\ntype: transcript\nsummary: A talk.\nsummary_provisional: 0\n"
+    "---\n\n# c1\n\nWe mentioned the forward shock once.\n",
+    encoding="utf-8")
+qidx = Index(qv, tmp / "quiet.db")
+qidx.sync()
+QUIET = ("conversations", "sources")
+
+r1 = [h.path for h in search(qidx, "forward shock", depth="summary",
+                             quiet=QUIET)]
+ok("rung 1 returns only what was kept", r1 == ["notes/kept.md"], str(r1))
+r2 = [h.path for h in search(qidx, "forward shock", depth="body", quiet=QUIET)]
+ok("rung 2 reaches the source", "sources/paper.md" in r2, str(r2))
+ok("and the record", "conversations/c1.md" in r2, str(r2))
+
+only = [h.path for h in search(qidx, "Sedov length", depth="summary",
+                               quiet=QUIET)]
+ok("something only a source says is absent from rung 1", only == [], str(only))
+ok("and present at rung 2",
+   "sources/paper.md" in [h.path for h in search(qidx, "Sedov length",
+                                                 depth="body", quiet=QUIET)])
+none = [h.path for h in search(qidx, "forward shock", depth="summary")]
+ok("with no quiet folders given, only the type rule applies",
+   "sources/paper.md" in none and "conversations/c1.md" not in none, str(none))
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed\n")
 for f in FAIL:
     print("  FAIL  " + f)

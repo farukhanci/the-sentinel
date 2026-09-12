@@ -403,24 +403,24 @@ def analyze_page(sentinel, path: str, model, retry: bool = True,
     # and that stays.
     survivors = result["survivors"]
 
-    # A CONVERSATION SUMMARY PLACES NO LINKS. Its concepts are already
-    # recorded where they were said - in the transcript - and the summary
-    # points at that transcript, so the graph still reaches it.
+    # THE AUTHORITY IS WHAT THE USER CHOSE TO KEEP, not everything that was
+    # said. A note in `notes/` exists because he asked for it; a transcript
+    # exists because the code wrote it. So the note carries the links and the
+    # transcript carries none.
     #
-    # Linking both was measured to cost three things and buy none. The growth
-    # queue counts SOURCES, so one conversation registered as two and the
-    # threshold fired at half the evidence it was meant to need. The
-    # definition gate read the same content twice, doubling its model calls.
-    # And worst, a single fact stated in both copies counted as two defining
-    # sentences, so the floor that exists to refuse thin material could be
-    # cleared by a duplicate.
+    # It ran the other way first, and the cost was measured: concepts came off
+    # the transcript, which meant the model's own turns fed the graph.
+    # `Obsidian vault` and `Sentinel` entered as concepts from the assistant
+    # describing its own tools; `capacitance of the sphere` and `breakdown
+    # field of air` entered from the model reciting physics nobody had asked
+    # about. The definition gate kept every one of them from becoming a page,
+    # but they still filled the queue.
     #
-    # The page still gets its summary. That is what search reads.
-    if ((fm.get("origin") or "") == "conversation"
-            and fm.get("type") != "transcript"):
+    # A transcript still gets a summary and is still searchable at rung 2.
+    # Nothing said is lost - it just does not get promoted unasked.
+    if sentinel.sources and path.startswith(sentinel.sources + "/"):
         survivors = []
-        result["links_skipped"] = "summary of a conversation; its concepts are "
-        result["links_skipped"] += "linked at the transcript"
+        result["links_skipped"] = "a filed source places no links"
     elif (fm.get("origin") or "") == "derived":
         known = _known_keys(idx)
         dropped = [c for c in survivors if normalize(c) not in known]
@@ -679,6 +679,18 @@ def _analyze_windowed(sentinel, path, f, fm, body, before_hash,
         result["note"] = "below the concept floor"
         result["status"] = "low_yield"
 
+    quiet = (fm.get("type") == "transcript"
+             or (sentinel.sources
+                 and path.startswith(sentinel.sources + "/")))
+    if quiet:
+        # Read, gated, counted - and not written into the text. Raw material
+        # is what was read, not what was decided about it; the graph is built
+        # from the pages the user chose to keep. See the authority note in
+        # `analyze_page`.
+        survivors = []
+        result["links_skipped"] = ("a transcript places no links"
+                                   if fm.get("type") == "transcript"
+                                   else "a filed source places no links")
     new_body, report = link_body(body, survivors, _resolution_index(idx))
     fm["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:

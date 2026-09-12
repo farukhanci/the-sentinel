@@ -137,17 +137,69 @@ def _locked(fn):
 
 class Sentinel:
     def __init__(self, index, encoder=None, origin: str = "conversation",
-                 pages: str = "wiki"):
+                 pages: str = "notes", concepts: str = "wiki",
+                 records: str = "conversations",
+                 sources: str = "sources"):
         self.index = index
         self.encoder = encoder
         # `origin` is code's to set because only code knows which path a write
         # arrived on: `conversation` while talking, `user` written directly,
         # later `ingestion`.
         self.origin = origin
-        # Where a page with no folder in its path goes. The model was writing
-        # to the vault root because nothing said otherwise, and a root that
-        # fills with pages loses the one place a person looks first.
+        # WHERE EACH KIND OF PAGE LIVES, and the two are not the same place.
+        #
+        # `pages` is where writing from a conversation lands. `concepts` is
+        # where the maintenance pass puts pages it wrote from sources, and
+        # nothing else belongs there - a folder that holds both stops being an
+        # answer to "what does this vault know" and becomes a pile.
+        #
+        # The model was writing to the vault ROOT before this existed, because
+        # nothing said otherwise.
         self.pages = pages.strip("/")
+        self.concepts = concepts.strip("/")
+        # Where the code writes conversation records. Named here with the
+        # others so no caller has to know the string.
+        self.records = records.strip("/")
+        # Filed raw sources. Indexed, so what is in them can be found and can
+        # feed concept pages - but held to the same rung as a transcript: out
+        # of the summary search, and placing no links. They are what was read,
+        # not what was decided about it.
+        self.sources = sources.strip("/")
+        # RECORD THE LAYOUT IN THE VAULT so a mismatch is loud.
+        #
+        # These three names are set in two places - the constructor defaults
+        # that `chat`, the server and the maintenance pass use, and the Open
+        # WebUI valves. Change a valve and the conversation writes to one
+        # folder while the maintenance pass keeps working on another. Both
+        # halves keep succeeding; that is exactly the shape of the two-database
+        # defect, which went unnoticed for a day.
+        #
+        # So the first component to run writes the layout down, and any later
+        # one that disagrees says so on the health line instead of quietly
+        # working somewhere else.
+        self._layout_note = ""
+        try:
+            mine = f"{self.pages}|{self.concepts}|{self.records}|{self.sources}"
+            row = self.index.db.execute(
+                "SELECT value FROM meta WHERE key='layout'").fetchone()
+            if row is None or len(row["value"].split("|")) != len(
+                    mine.split("|")):
+                # No record yet, or one written before a folder was added to
+                # the layout. An upgrade is not a disagreement.
+                self.index.db.execute(
+                    "INSERT OR REPLACE INTO meta (key, value) VALUES "
+                    "('layout', ?)", (mine,))
+                self.index.db.commit()
+            elif row["value"] != mine:
+                was = row["value"].split("|")
+                self._layout_note = (
+                    f"folders differ from the ones this vault was set up with: "
+                    f"pages {was[0]}->{self.pages}, concepts "
+                    f"{was[1]}->{self.concepts}, records {was[2]}->"
+                    f"{self.records}, sources {was[3]}->{self.sources}. "
+                    f"Another component may still be using the old ones")
+        except Exception:
+            pass
         # Keyed by scope so one conversation's searches never speak for
         # another's. A caller that knows the conversation sets `scope`; one
         # that does not shares a bucket, which is why the guard only warns.
@@ -191,6 +243,8 @@ class Sentinel:
                 notes.append(f"{failed} pages failed analysis")
         except Exception:
             pass          # the table appears with the first analysis pass
+        if self._layout_note:
+            notes.append(self._layout_note)
         try:
             rows, _ = self.index.growth_queue(3)
             gaps = [r for r in rows if r["n"] >= GAP_REFERENCES]
@@ -243,6 +297,11 @@ class Sentinel:
         """
         row = self.index.meta(path)
         if row and row["type"] == "transcript":
+            return True
+        # The named folder, whether or not it holds anything yet. The type
+        # test alone left a fresh vault open: with no transcript written, the
+        # folder looked like any other and a page could be created in it.
+        if self.records and path.startswith(self.records + "/"):
             return True
         folder = path.rsplit("/", 1)[0] if "/" in path else ""
         if not folder:
@@ -435,7 +494,7 @@ class Sentinel:
                        f"so these are the same pages. Rewording will not change "
                        f"them." if repeats else "")
         hits = _search(self.index, query, encoder=self.encoder, depth=depth,
-                       limit=limit)
+                       limit=limit, quiet=(self.records, self.sources))
         return format_hits(hits, query, depth) + repeat_note + self._health()
 
     # -- listing ---------------------------------------------------------
@@ -644,7 +703,12 @@ class Sentinel:
         Waiting for the user costs nothing, because the alternative was
         nothing happening.
 
-        WHERE IT GOES: `wiki/<name>.md`. Nothing in the vault root - measured,
+        WHERE IT GOES: `notes/<name>.md` - a path with no folder lands there.
+        NAME IT BY SUBJECT, never by date or conversation: the page written
+        today is the page added to next week from a different chat, and it can
+        only be found again if its address is the subject.
+        `wiki/` belongs to the maintenance pass and writing to it is refused.
+        Nothing in the vault root either - measured,
         a page was written there because no instruction said otherwise, and a
         vault whose root fills up with pages loses the one place a person
         looks first.
@@ -723,10 +787,23 @@ class Sentinel:
             return (f"[STOP] {path} is a conversation record, written by the "
                     f"system from the messages themselves. It cannot be "
                     f"edited. Write the finding to a page in "
-                    f"{self.pages or 'wiki'}/ instead.")
+                    f"{self.pages}/ instead.")
         f = self.index.vault / path
         exists = f.exists()
         row = self.index.meta(path)
+
+        # CREATING in the concept folder is refused; editing what is already
+        # there is not.
+        #
+        # Those pages are written from sources that define the concept, gated,
+        # and grown as more sources arrive. A page placed there from a
+        # conversation would look identical and carry none of that, and the
+        # folder would stop being an answer to what the vault knows. Fixing a
+        # page that IS one is a different thing and stays allowed.
+        if not exists and self.concepts and path.startswith(self.concepts + "/"):
+            return (f"[STOP] {self.concepts}/ holds concept pages, which the "
+                    f"maintenance pass writes from sources that define them. "
+                    f"Write to {self.pages}/ instead.")
 
         if exists and expect == "new":
             # A page written from conversation GROWS when the conversation
@@ -751,8 +828,15 @@ class Sentinel:
                 if not content.lstrip().startswith("#"):
                     # The heading is code's: the model does not know today's
                     # date and should not be writing one.
-                    content = (f"## {datetime.now(timezone.utc):%Y-%m-%d}\n\n"
-                               + content.strip())
+                    #
+                    # Not repeated within a day. Two saves to the same page an
+                    # hour apart produced two identical `## 2026-09-05`
+                    # headings, which say nothing and read like a fault.
+                    today = f"{datetime.now(timezone.utc):%Y-%m-%d}"
+                    heads = re.findall(r"^##\s+(.+?)\s*$", self._body(path),
+                                       re.M)
+                    if not heads or heads[-1] != today:
+                        content = f"## {today}\n\n" + content.strip()
             else:
                 return (f"[RETRY] {path} already exists (expect "
                         f"{row['content_hash'][:8]} if you meant to change it)")

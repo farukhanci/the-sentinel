@@ -60,9 +60,16 @@ def rrf(rankings: list[list[str]], k: int = RRF_K) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _transcript_paths(index) -> set:
-    return {r["path"] for r in index.db.execute(
+def _quiet_paths(index, folders=()) -> set:
+    """Pages held back from rung 1: transcripts, and anything in a folder that
+    holds raw material rather than what was concluded from it."""
+    out = {r["path"] for r in index.db.execute(
         "SELECT path FROM files WHERE type='transcript'")}
+    for f in folders:
+        if f:
+            out |= {r["path"] for r in index.db.execute(
+                "SELECT path FROM files WHERE path LIKE ?", (f + "/%",))}
+    return out
 
 
 def literal_ranking(index, query: str, limit: int = 50):
@@ -100,7 +107,8 @@ def semantic_ranking(index, encoder, query: str, limit: int = 50):
 
 
 def search(index, query: str, encoder=None, depth: str = "summary",
-           limit: int = 5, chunks_per_file: int = 2) -> list[Hit]:
+           limit: int = 5, chunks_per_file: int = 2,
+           quiet: tuple = ()) -> list[Hit]:
     """`depth` is DEPTH OF ONE INTENT, which is why it is allowed to exist.
 
     Both depths run the same retrieval; what differs is how much of the hit is
@@ -125,7 +133,7 @@ def search(index, query: str, encoder=None, depth: str = "summary",
     # The ladder already draws this distinction. Cheap rung: the summary is
     # enough. Deeper rung: it was not, so read what was actually said.
     if depth == "summary":
-        skip = _transcript_paths(index)
+        skip = _quiet_paths(index, quiet)
         lists = [[(p, s) for p, s in lst if p not in skip] for lst in lists]
 
     fused = rrf([[f"{p}\x00{s}" for p, s in lst] for lst in lists])

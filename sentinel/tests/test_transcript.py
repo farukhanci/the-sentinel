@@ -77,9 +77,8 @@ ok("one call per window", r["calls"] == r["windows"], str(r))
 ok("no summary was written for it",
    idx.meta("conversations/2026-09-01-1.md")["summary"] == "A conversation.")
 body = (vault / "conversations" / "2026-09-01-1.md").read_text()
-ok("concepts are linked where they were said", "[[Amati relation]]" in body, body[:200])
-ok("a concept from a later window is found too", "[[Sedov length]]" in body)
-ok("first occurrence only", body.count("[[Amati relation]]") == 1)
+ok("a transcript is read but not marked up", "[[" not in body, body[:200])
+ok("its concepts are still counted", r["concepts"] >= 1, str(r))
 
 # --- a second model gives the windowed path its summary ------------------
 class Summariser:
@@ -191,10 +190,12 @@ idx.sync()
 rt = analyze_page(S, "conversations/dup-1.md", Fixed())
 rs = analyze_page(S, "wiki/dup-summary.md", Fixed())
 
-ok("the transcript links its concepts", rt["links"] >= 1, str(rt))
-ok("the summary does not", rs.get("links", 0) == 0, str(rs))
-ok("and it says why", "linked at the transcript" in rs.get("links_skipped", ""),
-   str(rs.get("links_skipped")))
+ok("the transcript places no links - it is a record, not an authority",
+   rt.get("links", 0) == 0, str(rt))
+ok("and it says why", "places no links" in rt.get("links_skipped", ""),
+   str(rt.get("links_skipped")))
+ok("the note the user asked for DOES link its concepts",
+   rs["links"] >= 1, str(rs))
 ok("the summary still gets a summary of its own",
    idx.meta("wiki/dup-summary.md")["summary"] == "A page.")
 ok("it is still connected to the record it came from",
@@ -204,11 +205,12 @@ ok("it is still connected to the record it came from",
 srcs = [r["source"] for r in idx.db.execute(
     "SELECT source FROM links WHERE target_key=?", (_n("Amati relation"),))]
 ok("one conversation counts as ONE source in the growth queue",
-   srcs.count("wiki/dup-summary.md") == 0 and
-   "conversations/dup-1.md" in srcs, str(srcs))
+   srcs.count("conversations/dup-1.md") == 0
+   and "wiki/dup-summary.md" in srcs, str(srcs))
 mats = [p for p, _ in material(idx, _n("Amati relation"), "Amati relation")]
-ok("and the definition gate reads it once, not twice",
-   "wiki/dup-summary.md" not in mats, str(mats))
+ok("the definition gate reads what the user kept, not the raw record",
+   "conversations/dup-1.md" not in mats and "wiki/dup-summary.md" in mats,
+   str(mats))
 
 # --- the link between them -------------------------------------------------
 out = S.graph("findings")

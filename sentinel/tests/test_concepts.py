@@ -116,6 +116,22 @@ ok("it records what it was written from", "sources: wiki/notes.md" in page, page
 ok("its summary is provisional until the analysis pass runs",
    "summary_provisional: 1" in page)
 
+# --- the concept folder is the Sentinel's, decided in one place ----------
+v9, idx9, S9 = vault_with({
+    "s0.md": ("source", "The [[reverse shock]] is the inward-moving boundary. "
+              + "Filler. " * 20),
+    "s1.md": ("source", "The [[reverse shock]] is where the ejecta are heated. "
+              + "Padding. " * 20),
+})
+S9.concepts = "concepts"
+r9 = write_concept(S9, normalize("reverse shock"), "reverse shock", Model())
+ok("the page lands in the Sentinel's concept folder, not a hardcoded one",
+   r9.get("path") == "concepts/reverse shock.md", str(r9))
+ok("and the folder argument still overrides when given",
+   write_concept(S9, normalize("reverse shock"), "reverse shock", Model(),
+                 folder="elsewhere").get("path") in
+   (None, "elsewhere/reverse shock.md"))
+
 # --- derived pages are not material ---------------------------------------
 idx.sync()
 mat = material(idx, normalize("forward shock"), "forward shock")

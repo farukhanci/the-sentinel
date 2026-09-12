@@ -294,6 +294,48 @@ ok("the gap is the only thing the line has to say",
    len(note) == 1 and note[0] == "[note] referenced but still undefined: "
                                  "forward shock (5)", str(note))
 
+# --- a folder layout that disagrees with the vault is said out loud ------
+lay = tmp / "layout"
+(lay / "notes").mkdir(parents=True)
+(lay / "notes" / "a.md").write_text(
+    "---\ntype: note\nsummary: A.\nsummary_provisional: 0\n---\n\n"
+    "# a\n\nText.\n", encoding="utf-8")
+lidx = Index(lay, tmp / "layout.db")
+lidx.sync()
+lidx.db.execute("UPDATE files SET analyzed_hash = content_hash")
+lidx.db.commit()
+
+first = Sentinel(lidx)
+ok("the first component to run records the layout and says nothing",
+   first._layout_note == "", first._layout_note)
+ok("and it is stored in the vault's own index",
+   lidx.db.execute("SELECT value FROM meta WHERE key='layout'"
+                   ).fetchone()["value"] == "notes|wiki|conversations|sources")
+
+same = Sentinel(lidx)
+ok("a component agreeing with it is silent", same._layout_note == "")
+
+odd = Sentinel(lidx, pages="kayitlar")
+out = odd.listing(by="recent")
+ok("one that disagrees says so on the health line",
+   "folders differ" in out, out)
+ok("naming what changed", "notes->kayitlar" in out, out)
+ok("and warning that another component may not have followed",
+   "still be using the old ones" in out, out)
+ok("the disagreement does not change what the vault recorded",
+   lidx.db.execute("SELECT value FROM meta WHERE key='layout'"
+                   ).fetchone()["value"] == "notes|wiki|conversations|sources")
+
+lidx.db.execute("UPDATE meta SET value='notes|wiki|conversations' "
+                "WHERE key='layout'")
+lidx.db.commit()
+grown = Sentinel(lidx)
+ok("a layout written before a folder was added is upgraded, not flagged",
+   grown._layout_note == "", grown._layout_note)
+ok("and the record now carries the new folder",
+   lidx.db.execute("SELECT value FROM meta WHERE key='layout'"
+                   ).fetchone()["value"].endswith("|sources"))
+
 # --- the health line ------------------------------------------------------
 ok("pending analysis surfaces itself in output the model already reads",
    "[note]" in meta and "awaiting analysis" in meta, meta)

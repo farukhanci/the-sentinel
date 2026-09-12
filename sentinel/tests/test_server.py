@@ -90,22 +90,22 @@ ok("a missing required field is refused by the schema, before the tool",
    r.status_code == 422, str(r.status_code))
 
 # --- the write path is real ----------------------------------------------
-r = client.post("/write", json={"path": "wiki/new.md",
+r = client.post("/write", json={"path": "notes/new.md",
                                 "content": "# new\n\nThe jet break steepens it.",
                                 "expect": "new"})
 ok("write creates a page", r.json().startswith("[DONE] created"), r.text[:120])
-ok("and the page is on disk", (vault / "wiki" / "new.md").exists())
+ok("and the page is on disk", (vault / "notes" / "new.md").exists())
 
-h = idx.meta("wiki/new.md")["content_hash"][:8]
-r = client.post("/write", json={"path": "wiki/new.md", "content": "# new\n\nEdited.",
+h = idx.meta("notes/new.md")["content_hash"][:8]
+r = client.post("/write", json={"path": "notes/new.md", "content": "# new\n\nEdited.",
                                 "where": "whole", "expect": "deadbeef"})
 ok("a stale expect is refused over the wire too", r.json().startswith("[RETRY]"),
    r.text[:120])
-r = client.post("/write", json={"path": "wiki/new.md", "content": "# new\n\nEdited.",
+r = client.post("/write", json={"path": "notes/new.md", "content": "# new\n\nEdited.",
                                 "where": "whole", "expect": h})
 ok("the current expect succeeds", r.json().startswith("[DONE]"), r.text[:120])
 
-r = client.post("/relocate", json={"path": "wiki/new.md", "to": "wiki/moved.md"})
+r = client.post("/relocate", json={"path": "notes/new.md", "to": "wiki/moved.md"})
 ok("relocate works", r.json().startswith("[DONE]"), r.text[:120])
 r = client.post("/remove", json={"path": "wiki/moved.md"})
 ok("remove works", r.json().startswith("[DONE]"), r.text[:120])

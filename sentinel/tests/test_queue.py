@@ -378,7 +378,10 @@ def naming_vault(links: dict):
                 f"We discuss [[{display}]] at length here.\n", encoding="utf-8")
     idx = Index(v, tmp / "n.db")
     idx.sync()
-    return v, idx, Sentinel(idx)
+    # These tests create concept pages, which is the maintenance pass's job.
+    # That pass writes into the concept folder directly, so the Sentinel it
+    # uses carries no guard on it.
+    return v, idx, Sentinel(idx, concepts="")
 
 
 # --- the auto-merge that field test 1 recorded and no code performed ------
