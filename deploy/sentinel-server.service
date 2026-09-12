@@ -17,7 +17,6 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 -m sentinel.server \
     --vault %h/obsidian/Obsidian-1 \
     --embed-model %h/models/multilingual-e5-small \
-    --exclude agent_workspace \
     --host 172.17.0.1 --port 8123
 
 Restart=on-failure
