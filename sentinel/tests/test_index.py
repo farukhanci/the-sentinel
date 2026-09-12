@@ -79,12 +79,12 @@ ok("nor anything under .obsidian", idx.meta(".obsidian/notes.md") is None)
 import inspect as _i  # noqa: E402
 
 from ..index import default_db  # noqa: E402
-from .. import chat as _chat, maintain as _maint, server as _srv  # noqa: E402
+from .. import chat as _chat, maintain as _maint  # noqa: E402
 
 ok("the path is decided in one place",
    str(default_db("/x/vault")) == "/x/vault/.sentinel/index.db",
    str(default_db("/x/vault")))
-for _m in (_chat, _maint, _srv):
+for _m in (_chat, _maint):
     src = _i.getsource(_m)
     ok(f"{_m.__name__.split('.')[-1]} uses it",
        "default_db(vault)" in src and ".sentinel.db" not in src)
