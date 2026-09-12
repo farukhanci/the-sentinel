@@ -1,0 +1,17 @@
+# Direct dependencies only; everything else comes in with these.
+
+# Embedding: local ONNX model, no network calls.
+numpy
+onnxruntime
+tokenizers
+
+# Frontmatter.
+PyYAML
+
+# HTTP server (sentinel.server). The rest of the system does not need these.
+fastapi
+uvicorn
+
+# Optional: exact token counts. Without it, count_tokens falls back to an
+# estimate at 4 chars/token and says so in what it returns.
+# tiktoken
