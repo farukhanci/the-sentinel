@@ -228,14 +228,18 @@ Substitute your own — any tool-calling model works. Ollama listens on
 ### 3. The embedding model
 
 Two files are needed: the ONNX graph and the tokenizer. Downloading the whole
-repository would also pull PyTorch weights that go unused.
+repository would also pull PyTorch weights that go unused. `huggingface_hub`
+came in with the requirements above, so `hf` is already on the path.
 
 ```bash
-pip install huggingface_hub
 hf download intfloat/multilingual-e5-small \
     onnx/model.onnx tokenizer.json \
-    --local-dir ~/models/multilingual-e5-small
+    --local-dir models/multilingual-e5-small
 ```
+
+Inside the repository on purpose. Open WebUI runs in a container and the
+repository is mounted into it, so a model that sits here is visible there
+without a second mount to remember. `models/` is gitignored.
 
 The loader accepts `<dir>/onnx/model.onnx` or `<dir>/model.onnx`, with
 `tokenizer.json` beside it either way, and says which one is missing if one is.
@@ -245,8 +249,13 @@ The loader accepts `<dir>/onnx/model.onnx` or `<dir>/model.onnx`, with
 ```bash
 python3 -m sentinel.chat \
     --vault ~/obsidian/YourVault \
-    --model hf.co/AtomicChat/Ornith-1.5-9B-GGUF:IQ4_XS
+    --model hf.co/AtomicChat/Ornith-1.5-9B-GGUF:IQ4_XS \
+    --embed-model models/multilingual-e5-small
 ```
+
+Leave `--embed-model` out and it still runs — on the literal half of search
+alone, quietly, with no error. That is half the substrate missing and nothing
+says so, which is why it is in every command in this file.
 
 ## Open WebUI
 
@@ -275,10 +284,11 @@ and enable it for the model you talk to.
 
 Everything else is configured through that tool's valves — the gear icon next
 to it in the tools list. The paths there are as the **container** sees them,
-not the host: with the mounts above, the vault is `/vault` and the embedding
-model is under `/sentinel`. Leave the index path empty unless you have a
-reason — empty means the tool derives it the same way every other entry point
-does, and a second copy of that path is how the index once split in two.
+not the host: with the mounts above the vault is `/vault`, and the embedding
+model is `/sentinel/models/multilingual-e5-small`, which is why step 3 put it
+inside the repository. Leave the index path empty unless you have a reason —
+empty means the tool derives it the same way every other entry point does,
+and a second copy of that path is how the index once split in two.
 
 Then give the model the system prompt in `openwebui_system_prompt.txt`. It is
 not optional decoration: it is where the ladder is explained, where writing is
@@ -303,6 +313,7 @@ summaries and concepts, then embeddings over the chunks analysis just made.
 ```bash
 python3 -m sentinel.timer --install \
     --vault ~/obsidian/YourVault --model your-model:latest \
+    --embed-model models/multilingual-e5-small \
     --at 23:00 --minutes 30
 ```
 
