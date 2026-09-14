@@ -159,11 +159,17 @@ authentication.** See the security note below.
 
 ## Requirements
 
-- Python 3.11 or later
+- Python 3.11 or later, with `venv` and `pip`
 - [Ollama](https://ollama.com) with a tool-calling model
-- An Obsidian vault (any directory of markdown files with frontmatter)
-- An ONNX embedding model on disk — multilingual-e5-small, 384-dim
+- An Obsidian vault — any directory of markdown files with frontmatter
+- multilingual-e5-small as ONNX, on disk
 - A GPU the orchestrator fits on; embeddings run on the CPU
+
+On a bare Debian or Ubuntu, the system packages come first:
+
+```bash
+sudo apt install git python3 python3-venv python3-pip
+```
 
 Embeddings run on the CPU on purpose: search must never compete with the
 conversation model for VRAM. multilingual-e5-small was chosen over
@@ -196,6 +202,8 @@ seconds to 2.5.
 
 ## Setup
 
+### 1. The package
+
 ```bash
 git clone https://github.com/farukhanci/the-sentinel
 cd the-sentinel
@@ -204,12 +212,40 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Pull a model, put the embedding model somewhere on disk, and talk to the vault:
+### 2. Ollama and the models
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+
+ollama pull hf.co/AtomicChat/Ornith-1.5-9B-GGUF:IQ4_XS   # conversation
+ollama pull qwen3.5-9b-jinja                             # concept extraction
+ollama pull qwen3.5-4b-xl                                # summaries
+```
+
+Substitute your own — any tool-calling model works. Ollama listens on
+`http://localhost:11434`, which is where this expects to find it.
+
+### 3. The embedding model
+
+Two files are needed: the ONNX graph and the tokenizer. Downloading the whole
+repository would also pull PyTorch weights that go unused.
+
+```bash
+pip install huggingface_hub
+hf download intfloat/multilingual-e5-small \
+    onnx/model.onnx tokenizer.json \
+    --local-dir ~/models/multilingual-e5-small
+```
+
+The loader accepts `<dir>/onnx/model.onnx` or `<dir>/model.onnx`, with
+`tokenizer.json` beside it either way, and says which one is missing if one is.
+
+### 4. Talk to the vault
 
 ```bash
 python3 -m sentinel.chat \
     --vault ~/obsidian/YourVault \
-    --model your-model:latest
+    --model hf.co/AtomicChat/Ornith-1.5-9B-GGUF:IQ4_XS
 ```
 
 ## Open WebUI
@@ -219,19 +255,30 @@ and the vault. Nothing is installed inside the container — the tool file puts
 the repository on `sys.path` and imports from there.
 
 ```bash
-docker run -d --name open-webui \
-  -v ~/the-sentinel:/sentinel \
+docker run -d --name open-webui -p 3000:8080 \
+  --user $(id -u):$(id -g) \
+  --add-host=host.docker.internal:host-gateway \
+  -v open-webui:/app/backend/data \
+  -v ~/the-sentinel:/sentinel:ro \
   -v ~/obsidian/YourVault:/vault \
-  ... your usual flags ...
+  ghcr.io/open-webui/open-webui:main
 ```
 
-Then paste `openwebui_tool.py` into Open WebUI under Workspace → Tools, and
-enable it for the model you talk to. Everything else is configured through
-the valves on that tool: the vault path as the container sees it, folders to
-exclude, and the path to the embedding model. Leave the index path empty
-unless you have a reason — empty means the tool derives it the same way every
-other entry point does, and a second copy of that path is how the index once
-split in two.
+Open WebUI is then at `http://localhost:3000`. `--user` is not optional in
+practice: a container running as root writes root-owned files into the vault,
+and nothing on the host can edit them afterwards. A bind mount cannot be added
+to a running container, so an existing one has to be recreated — the data
+survives in the named volume.
+
+Then paste `openwebui_tool.py` into Open WebUI under Workspace → Tools → +,
+and enable it for the model you talk to.
+
+Everything else is configured through that tool's valves — the gear icon next
+to it in the tools list. The paths there are as the **container** sees them,
+not the host: with the mounts above, the vault is `/vault` and the embedding
+model is under `/sentinel`. Leave the index path empty unless you have a
+reason — empty means the tool derives it the same way every other entry point
+does, and a second copy of that path is how the index once split in two.
 
 Then give the model the system prompt in `openwebui_system_prompt.txt`. It is
 not optional decoration: it is where the ladder is explained, where writing is
@@ -260,7 +307,11 @@ python3 -m sentinel.timer --install \
 ```
 
 Install it from inside the venv — the timer writes `sys.executable` into the
-unit, so it points at the right Python.
+unit, so it points at the right Python. Check that it took:
+
+```bash
+systemctl --user list-timers sentinel-maintenance.timer
+```
 
 A user timer rather than a system one: the vault is in a home directory and
 Ollama runs as the user, so a system unit would need permissions it has no
