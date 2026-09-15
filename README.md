@@ -252,6 +252,70 @@ in doubt — but keeping a knowledge base from filling with low-information
 pages is a claim about scale, and this has not been run at scale. The numbers
 quoted in this file come from that vault, not from a large one.
 
+## How it is meant to be used
+
+This describes the design, not experience of it. The system is days old and
+the vault holds 46 files: 33 under `sources/`, 7 under `conversations/`, one
+note, and `wiki/` empty — the maintenance pass has not yet written a concept
+page.
+
+**Keeping something.** The trigger is the user asking: "kaydet", "save this",
+"note this". The model does not decide on its own and does not offer.
+
+What happens then is code, not the model. The conversation is copied whole
+into `conversations/`, found again by its chat id. The page is written into
+`notes/`, named by subject. A `Kayıt:` line pointing at the transcript is
+added to the page body.
+
+A second save in the same chat adds to the same page rather than replacing it,
+and adds no second `Kayıt:` line — that conversation is already recorded. A
+save from a *different* chat does add one, so a page shows all of its own
+history rather than half of it. The transcript is refreshed on every save, so
+it always holds the whole exchange rather than freezing at the first one.
+
+**Where a concept page comes from.** Two ways, and the second exists because
+of a restriction.
+
+The maintenance pass writes one when the sources support it: paragraphs are
+collected from the pages that link to the concept, each is put to the model as
+*does this say what the thing is*, and two defining sentences are enough. One
+is not, and none means the concept stays in the queue as something to go and
+read about.
+
+Or the user opens the page. Clicking a faded link in Obsidian creates a file
+with that name, and from that point the model can fill it in conversation —
+because creating a page under `wiki/` from a chat is refused, while editing an
+existing one is not. That folder means "concepts the sources define", and a
+page put there from a conversation does not carry that claim. The maintenance
+pass then leaves it alone: its first check is whether a page already resolves
+from the name.
+
+**The nightly pass.** It runs at 23:00 and is read with
+`journalctl --user -u sentinel-maintenance`. One run looked like this:
+
+```
+analysis
+  [1/2] conversations/2026-09-03-1.md: ok 4 concepts, 9.4s
+  [2/2] wiki/settled decisions.md: ok 8 concepts, load 0.3s prefill 0.3s gen 3.5s
+concept pages
+  analysis pass: skipped - mentioned but never defined in the sources
+  chat interface: skipped - mentioned but never defined in the sources
+  analysed 2   embedded 7   written 0   seconds 37.4
+  resolved {'same': 0, 'different': 3, 'unclear': 4, 'unconfirmed': 1}
+```
+
+`unconfirmed` counts merge decisions that did not hold when the pair was
+swapped and the question asked again. This run had one. Two pages took 37
+seconds, seven took 139, peak memory 1.5 GB.
+
+**The health line.** Appended to tool output, and only when there is something
+to say: pages awaiting analysis, failed analyses, concepts four or more pages
+now reference but nothing has defined, and concept pages past twelve sections.
+The last two have never fired here — the vault has not reached that scale.
+
+It never acts. Whether a bloated page should be split is a judgement about the
+subject, and it is left to the person.
+
 ## Requirements
 
 - Python 3.11 or later, with `venv` and `pip`
