@@ -134,32 +134,154 @@ class OllamaModel:
             return False
 
 
+class ModelHTTPError(RuntimeError):
+    """An HTTP failure with the server's own explanation attached.
+
+    A bare `HTTPError: 500` is undiagnosable, and the reason is always in the
+    body the caller never sees - a model id the endpoint does not have, a
+    context length it will not take, a key that expired. `chat.py` learned
+    this against Ollama and says so in `_post`; the cost is the same here, and
+    higher, because a remote endpoint is the one place the failure cannot be
+    reproduced by hand in a second.
+
+    `status` is kept so a caller can tell a rejected FIELD (400) from a
+    rejected REQUEST, which is what the `think` retry below turns on.
+    """
+
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
+
+
+def _post(url: str, payload: dict, headers: dict, timeout: int) -> dict:
+    try:
+        req = urllib.request.Request(
+            url, data=json.dumps(payload).encode(), headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode()[:600]
+        except Exception:
+            detail = "(no body)"
+        raise ModelHTTPError(e.code, f"{e.code} from {url}: {detail}") from None
+    except urllib.error.URLError as e:
+        raise ModelHTTPError(0, f"cannot reach {url}: {e.reason}") from None
+
+
 class OpenAICompatModel:
     """Through Open WebUI or any OpenAI-shaped endpoint. Wall time only -
-    which is precisely the comparison worth making."""
+    which is precisely the comparison worth making.
+
+    WHAT THIS CANNOT REPORT, and it is the reason the direct client exists:
+    the OpenAI shape returns no load / prefill / generation breakdown, only a
+    total. Collapsing those three produced three wrong diagnoses in a row (see
+    the module docstring), so this returns `wall` and does NOT invent the rest
+    - the keys are absent rather than zero, and every reader must branch on
+    their presence instead of reading a plausible-looking 0.0.
+    """
 
     def __init__(self, model: str, base_url: str, api_key: str = "",
-                 timeout: int = 900):
+                 timeout: int = 900, num_ctx: int = 8192,
+                 think: bool | None = False):
+        # `num_ctx` IS NOT SENT ANYWHERE. It is here because five call sites -
+        # analysis.py three times, concepts.py, harness.py - ask the model
+        # object how much context it has with `getattr(model, "num_ctx", 8192)`
+        # and decide two things with the answer: whether a page is read whole
+        # or in windows, and whether a returned prompt_tokens means the page
+        # was truncated. Without the attribute every one of them silently
+        # assumed 8192 for an endpoint that may have sixteen times that, so a
+        # page that fitted easily was chopped into windows and lost its
+        # summary for no reason. Set it to the context the endpoint really has.
+        #
+        # `think` defaults to FALSE, matching OllamaModel, because the
+        # analysis pass is a transport task and reasoning there cost 5620
+        # tokens for a two-field JSON object. There is no field in the OpenAI
+        # shape that turns reasoning off, so this is a best effort: the field
+        # is sent the way Ollama's own /v1 shim and several self-hosted
+        # servers accept it, and when the endpoint will not have it, or takes
+        # it and reasons anyway, that is REPORTED rather than assumed. See
+        # `_warn`. Pass None to send nothing and leave the endpoint alone.
         self.model, self.base_url, self.api_key, self.timeout = \
             model, base_url.rstrip("/"), api_key, timeout
+        self.num_ctx, self.think = num_ctx, think
+        # Sticky, both of them. A pass is hundreds of calls against ONE
+        # endpoint: a field it rejected on page 1 will be rejected on page 50,
+        # so stop paying the round trip, and say it once rather than fifty
+        # times.
+        self.think_sent = think is not None
+        self.think_note = ""
+
+    def _warn(self, text: str) -> str:
+        """Record an endpoint-level warning, and return it ONCE.
+
+        It is a fact about the endpoint, not about the page, so repeating it
+        per page would bury the pass output it is meant to stand out in. The
+        first result carries it; `self.think_note` keeps it for whoever
+        summarises the run.
+        """
+        if self.think_note:
+            return ""
+        self.think_note = text
+        return text
 
     def complete(self, prompt: str) -> tuple[str, dict]:
-        body = json.dumps({
+        payload = {
             "model": self.model, "temperature": 0,
             "messages": [{"role": "user", "content": prompt}],
-        }).encode()
+        }
+        if self.think_sent:
+            payload["think"] = self.think
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        req = urllib.request.Request(
-            f"{self.base_url}/chat/completions", data=body, headers=headers)
+        url = f"{self.base_url}/chat/completions"
+
+        note = ""
         t0 = time.perf_counter()
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            d = json.loads(r.read())
+        try:
+            d = _post(url, payload, headers, self.timeout)
+        except ModelHTTPError as e:
+            # A strict endpoint rejects an unknown field outright. That is the
+            # ONE case where the answer is unambiguous, so take it: drop the
+            # field, stop sending it, and say that thinking is now whatever
+            # the endpoint decides.
+            if e.status != 400 or not self.think_sent:
+                raise
+            payload.pop("think", None)
+            self.think_sent = False
+            note = self._warn(
+                "the endpoint rejected `think`, so thinking is at the "
+                "model's own default and the analysis pass is not turning it "
+                "off here")
+            d = _post(url, payload, headers, self.timeout)
         wall = time.perf_counter() - t0
-        usage = d.get("usage", {})
-        return d["choices"][0]["message"]["content"], {
+
+        msg = d["choices"][0]["message"]
+        text = msg.get("content") or ""
+        if self.think is False and not note:
+            # THE QUIETER FAILURE, and the one worth catching: a server that
+            # does not know the field accepts the request and ignores it. 200
+            # OK proves nothing, so the only honest check is the output -
+            # reasoning that came back anyway, in either of the two shapes it
+            # arrives in.
+            if msg.get("reasoning_content") or msg.get("reasoning") \
+                    or "<think>" in text:
+                note = self._warn(
+                    "the endpoint returned reasoning although `think` was "
+                    "false - thinking is NOT off here, and the analysis pass "
+                    "is paying for it")
+
+        usage = d.get("usage") or {}
+        timings = {
             "wall": wall,
+            # ABSENT, not zero, when the endpoint does not account for them.
+            # A reader that cannot tell 0.0 from "not reported" prints
+            # `load 0.0s prefill 0.0s gen 0.0s` under a call that took two
+            # minutes, which is worse than printing nothing.
             "prompt_tokens": usage.get("prompt_tokens", 0),
             "output_tokens": usage.get("completion_tokens", 0),
         }
+        if note:
+            timings["note"] = note
+        return text, timings

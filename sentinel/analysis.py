@@ -533,16 +533,44 @@ def run_pass(sentinel, model, limit: int | None = None, verbose: bool = True,
             r = {"path": path, "status": "failed", "concepts": 0,
                  "seconds": 0.0, "timings": {}, "repairs": [],
                  "note": f"{type(e).__name__}: {e}", "environmental": True}
+        # A MODEL CLIENT CAN HAVE SOMETHING TO SAY ABOUT THE CALL, and this is
+        # the one place every page passes through. `OpenAICompatModel` reports
+        # here that the endpoint would not turn thinking off - a fact about
+        # the run that would otherwise be invisible until the token bill
+        # arrived. Merged rather than assigned, so it never displaces the
+        # reason a page failed.
+        warning = r.get("timings", {}).get("note", "")
+        if warning:
+            r["note"] = f"{r['note']}; {warning}" if r["note"] else warning
         results.append(r)
         if verbose:
             t = r["timings"]
-            detail = (f"load {t.get('load', 0):.1f}s prefill "
-                      f"{t.get('prefill', 0):.1f}s gen {t.get('generate', 0):.1f}s"
-                      if t else f"{r['seconds']:.1f}s")
+            # `if "load" in t` and NOT `if t`. A dict can be present and still
+            # not carry the breakdown: the OpenAI-shaped endpoint returns a
+            # total and nothing else, so `.get('load', 0)` printed
+            # `load 0.0s prefill 0.0s gen 0.0s` under a call that really took
+            # two minutes. Absent keys mean the server did not account for it,
+            # and the wall clock this code measured itself is then the only
+            # honest number.
+            detail = (f"load {t['load']:.1f}s prefill "
+                      f"{t['prefill']:.1f}s gen {t['generate']:.1f}s"
+                      if "load" in t else f"{r['seconds']:.1f}s")
             print(f"  [{i}/{len(pending)}] {path}: {r['status']} "
                   f"{r['concepts']} concepts, {detail}"
                   + (f" (repaired: {', '.join(r['repairs'])})" if r["repairs"] else "")
                   + (f" - {r['note']}" if r["note"] else ""))
+    # THE PATHS THAT THROW THEIR TIMINGS AWAY still have to be able to warn.
+    # Windowed extraction keeps only concepts, and the summary model's call
+    # never reaches a page note at all - so a client-level warning raised on
+    # either would have no way out. Say it once here, and only if no page
+    # already carried it.
+    if verbose:
+        carried = [r["note"] for r in results if r["note"]]
+        for m in (model, summary_model):
+            warn = getattr(m, "think_note", "")
+            if warn and not any(warn in n for n in carried):
+                print(f"  [note] {warn}")
+
     if release:
         _release(model, verbose)
         if summary_model is not None:

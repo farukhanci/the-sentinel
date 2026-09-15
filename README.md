@@ -516,12 +516,12 @@ produced three wrong diagnoses in a row.
 ```bash
 for t in run_tests test_index test_search test_tools test_write test_analysis \
          test_stale test_queue test_repair test_harness test_transcript \
-         test_concepts test_maintain test_timer; do
+         test_concepts test_maintain test_timer test_models; do
   echo -n "$t: "; python3 -m sentinel.tests.$t 2>&1 | grep passed
 done
 ```
 
-611 checks over fourteen modules. The `field_test_*` modules are separate:
+655 checks over fifteen modules. The `field_test_*` modules are separate:
 they run against a real vault and a real model rather than fixtures, and they
 take minutes.
 
