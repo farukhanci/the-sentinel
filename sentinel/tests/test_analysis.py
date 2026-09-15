@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..analysis import analyze_page, gate_concepts, gate_summary, repair_json, run_pass
 from ..index import Index
-from ..text import page_hash
+from ..text import normalize, page_hash
 from ..tools import Sentinel
 
 PASS: list[str] = []
@@ -333,6 +333,52 @@ run_pass(S, NoUnload('{"summary": "A page.", "concepts": ["afterglow"]}'),
          verbose=False)
 ok("a model that cannot be unloaded is not a problem", True)
 ok("and reports one result per page", len(res) >= 1)
+
+# --- gate 2: a derived page cannot discover new concepts -------------------
+#
+# test_maintain.py's convergence check does not distinguish the gate from its
+# absence: the model there always returns two names that are already known
+# by the time the derived page is analysed, so that assertion would hold even
+# with _known_keys() deleted. This fixture seeds a name known only through a
+# PAGE and a name known only through an unresolved LINK, then adds one name
+# that is neither, so there is something for the gate to actually block.
+seed = ScriptedModel(
+    '{"summary": "A related idea.", "concepts": ["known concept two"]}')
+(vault / "wiki" / "known-via-link.md").write_text(
+    "---\ntype: note\nsummary: About a related idea.\nsummary_provisional: 0\n"
+    "---\n\n# known-via-link\n\nWe discuss known concept two here.\n",
+    encoding="utf-8")
+idx.sync()
+seed_r = analyze_page(S, "wiki/known-via-link.md", seed)
+ok("setup: the seed concept is linked with no page of its own",
+   seed_r.get("links") == 1 and idx.meta("wiki/known concept two.md") is None,
+   str(seed_r))
+
+(vault / "wiki" / "derived-page.md").write_text(
+    "---\ntype: concept\norigin: derived\nsummary: A written concept page.\n"
+    "summary_provisional: 1\n---\n\n# derived-page\n\nThis page mentions the "
+    "initial Lorentz factor, known concept two, and a totally new phenomenon "
+    "nobody has referenced before.\n", encoding="utf-8")
+idx.sync()
+derived_model = ScriptedModel(
+    '{"summary": "A written concept page.", "concepts": '
+    '["initial Lorentz factor", "known concept two", "totally new phenomenon"]}')
+r = analyze_page(S, "wiki/derived-page.md", derived_model)
+body = (vault / "wiki" / "derived-page.md").read_text()
+
+ok("block: the undiscovered name is counted and dropped",
+   r.get("not_discovered") == 1, str(r))
+ok("block: it is never bracketed into the page",
+   "[[totally new phenomenon]]" not in body, body)
+ok("block: it never enters the links table, so the growth queue never sees it",
+   idx.db.execute("SELECT COUNT(*) c FROM links WHERE target_key=?",
+                  (normalize("totally new phenomenon"),)).fetchone()["c"] == 0)
+ok("pass: a name known through its own PAGE is linked normally",
+   "[[initial Lorentz factor]]" in body, body)
+ok("pass: a name known only through an unresolved LINK is ALSO linked",
+   "[[known concept two]]" in body, body)
+ok("pass: the gate does not cut everything - two of three concepts got through",
+   r.get("links") == 2, str(r))
 
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed\n")
 for f in FAIL:

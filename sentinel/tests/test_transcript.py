@@ -218,6 +218,59 @@ ok("the page points at the record it came from", "2026-09-01-1" in out, out)
 ok("and the record is a real page, not an unresolved name",
    "no page yet" not in out.split("2026-09-01-1")[0].split("links to")[-1], out)
 
+# --- a filed source places no links either ----------------------------------
+#
+# The transcript trigger for this quiet block is well covered above. The
+# OTHER trigger - a path under sources/ - has never been exercised through
+# analyze_page(): the only existing sources/ fixture (test_search.py) writes
+# summary_provisional: 0 by hand and never calls analyze_page(), so it proves
+# search ranking, not that this code path runs at all.
+(vault / "sources").mkdir()
+(vault / "sources" / "paper.md").write_text(
+    "---\ntype: source\nsummary: A filed paper.\nsummary_provisional: 1\n"
+    "---\n\n# paper\n\nThe Amati relation is discussed at length in this "
+    "filed paper.\n", encoding="utf-8")
+(vault / "notes").mkdir()
+(vault / "notes" / "kept.md").write_text(
+    "---\ntype: note\nsummary: What was kept.\nsummary_provisional: 1\n"
+    "---\n\n# kept\n\nThe Amati relation is discussed at length in this "
+    "filed paper.\n", encoding="utf-8")
+idx.sync()
+
+rp = analyze_page(S, "sources/paper.md", Fixed())
+rn = analyze_page(S, "notes/kept.md", Fixed())
+
+ok("a filed source's concepts are still counted", rp["concepts"] >= 1, str(rp))
+ok("but it places no links - the short (non-windowed) path",
+   rp.get("links", 0) == 0, str(rp))
+ok("and says why", "places no links" in rp.get("links_skipped", ""),
+   str(rp.get("links_skipped")))
+src_body = (vault / "sources" / "paper.md").read_text()
+ok("the source text itself is not bracketed", "[[" not in src_body, src_body)
+ok("and it never enters the links table - the growth queue never sees it",
+   idx.db.execute("SELECT COUNT(*) c FROM links WHERE source=?",
+                  ("sources/paper.md",)).fetchone()["c"] == 0)
+
+ok("the same concept, said in notes/ instead, DOES link",
+   rn.get("links", 0) >= 1, str(rn))
+ok("and it does enter the links table",
+   idx.db.execute("SELECT COUNT(*) c FROM links WHERE source=?",
+                  ("notes/kept.md",)).fetchone()["c"] >= 1)
+
+# The same trigger, through the OTHER code path: a filed source too large for
+# the context takes analyze_page()'s "too large" branch into
+# _analyze_windowed(), which re-implements this same quiet check on its own.
+(vault / "sources" / "long-paper.md").write_text(
+    "---\ntype: source\nsummary: A long filed paper.\nsummary_provisional: 1\n"
+    "---\n\n# long-paper\n\n" + spoken, encoding="utf-8")
+idx.sync()
+rl = analyze_page(S, "sources/long-paper.md", WindowModel())
+ok("a filed source too large for the context is read in windows",
+   rl["status"] in ("ok", "low_yield") and rl["windows"] > 1, str(rl))
+ok("and still places no links there - the _analyze_windowed quiet block",
+   rl.get("links", 0) == 0 and "places no links" in rl.get("links_skipped", ""),
+   str(rl))
+
 # --- a page that grew past the context is read, not refused --------------
 (vault / "wiki" / "grown.md").write_text(
     "---\ntype: note\norigin: conversation\nsummary: An older summary.\n"
