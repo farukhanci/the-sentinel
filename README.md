@@ -40,6 +40,13 @@ transfer` sits in eleven thousand characters and is never once defined.
 **The graph is fed by what the user saved, not by everything discussed.** A
 conversation is not evidence.
 
+**And the record the fourth gate rests on cannot be edited by the model.**
+`write` refuses a transcript outright — not a retry, a stop, because no
+rewording of the request would make it succeed. Silencing concept extraction
+over conversations means nothing if the model can rewrite the conversation
+first, and it tried: caught once planning to "reconstruct the transcript with
+additions".
+
 The restraint is the design. The closest thing to this run at scale is Cebuano
 Wikipedia, where one bot wrote 99% of the articles. The facts were correct —
 they came from databases — and the community still proposed closing the
@@ -355,7 +362,7 @@ for t in run_tests test_index test_search test_tools test_write test_analysis \
 done
 ```
 
-595 checks over fourteen modules. The `field_test_*` modules are separate:
+611 checks over fourteen modules. The `field_test_*` modules are separate:
 they run against a real vault and a real model rather than fixtures, and they
 take minutes.
 
