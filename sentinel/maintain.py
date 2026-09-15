@@ -38,7 +38,7 @@ from pathlib import Path
 from .analysis import _release, run_pass
 from .concepts import bloated, candidates, run_concepts, stale_concepts
 from .index import Index, default_db
-from .models import OllamaModel
+from .models import OllamaModel, OpenAICompatModel
 from .resolve_queue import build_queue, next_batch, run_resolution
 from .tools import Sentinel
 
@@ -131,11 +131,59 @@ def maintain(sentinel, model, encoder=None, concept_limit: int = 5,
     return out
 
 
+def build_model(provider: str, model: str, *, host: str, num_ctx: int,
+                base_url: str | None, api_key_env: str | None, role: str):
+    """One role's model, from that role's own flags.
+
+    EVERY DEFAULT IS TODAY'S BEHAVIOUR. `--provider` unset means Ollama on
+    localhost with the same arguments the pass has always been given, so a
+    command line that worked yesterday produces the identical object.
+
+    The key is read from the ENVIRONMENT, never taken on the command line: a
+    key passed as an argument is in the shell history, in `ps`, and in the
+    systemd unit the timer writes.
+    """
+    if provider == "ollama":
+        return OllamaModel(model, host, num_ctx=num_ctx)
+    if not base_url:
+        raise SystemExit(f"--{role}base-url is required with "
+                         f"--{role}provider openai")
+    key = ""
+    if api_key_env:
+        key = os.environ.get(api_key_env, "")
+        if not key:
+            # Loudly, and before the pass starts. The failure without this is
+            # an unauthenticated request per page, hundreds of them, each one
+            # a round trip that could never have worked.
+            raise SystemExit(f"{api_key_env} is empty or unset in the "
+                             f"environment")
+    return OpenAICompatModel(model, base_url, api_key=key, num_ctx=num_ctx)
+
+
+def _provider_flags(ap, role: str, label: str) -> None:
+    ap.add_argument(f"--{role}provider", choices=["ollama", "openai"],
+                    default="ollama",
+                    help=f"Where the {label} model runs. `ollama` (default) "
+                         f"is the direct local client and is the only one "
+                         f"that reports load, prefill and generation "
+                         f"separately. `openai` is any OpenAI-shaped "
+                         f"endpoint, which reports a total and nothing else.")
+    ap.add_argument(f"--{role}base-url", default=None,
+                    help=f"The OpenAI-compatible base URL for the {label} "
+                         f"model, e.g. http://localhost:3000/api. Required "
+                         f"with --{role}provider openai.")
+    ap.add_argument(f"--{role}api-key-env", default=None,
+                    help="NAME of the environment variable holding the API "
+                         "key - not the key itself, which would land in the "
+                         "shell history and in `ps`.")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--vault", required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--host", default="http://localhost:11434")
+    _provider_flags(ap, "", "extraction")
     ap.add_argument("--exclude", action="append", default=[])
     ap.add_argument("--embed-model", default=None)
     ap.add_argument("--db", default=None)
@@ -147,6 +195,7 @@ def main() -> None:
                          "context. Without it those pages keep the "
                          "placeholder summary `write` gave them.")
     ap.add_argument("--summary-num-ctx", type=int, default=120000)
+    _provider_flags(ap, "summary-", "summary")
     ap.add_argument("--concepts", type=int, default=5,
                     help="Concept pages to write in one run. Small on "
                          "purpose: a run that writes forty pages produces "
@@ -182,11 +231,21 @@ def main() -> None:
         if args.embed_model:
             from .embed import E5Encoder
             encoder = E5Encoder(args.embed_model)
-        model = OllamaModel(args.model, args.host, num_ctx=args.num_ctx)
+        model = build_model(
+            args.provider, args.model, host=args.host, num_ctx=args.num_ctx,
+            base_url=args.base_url, api_key_env=args.api_key_env, role="")
         summary_model = None
         if args.summary_model:
-            summary_model = OllamaModel(args.summary_model, args.host,
-                                        num_ctx=args.summary_num_ctx)
+            # INDEPENDENT of the analysis role, not inherited from it.
+            # `--summary-model` exists to be a large-context model; moving the
+            # extraction role to a cloud endpoint says nothing about where
+            # that one should run, and silently dragging it along would send a
+            # model id the endpoint has never heard of.
+            summary_model = build_model(
+                args.summary_provider, args.summary_model,
+                host=args.host, num_ctx=args.summary_num_ctx,
+                base_url=args.summary_base_url,
+                api_key_env=args.summary_api_key_env, role="summary-")
         out = maintain(Sentinel(idx), model, encoder,
                        concept_limit=args.concepts, minutes=args.minutes,
                        summary_model=summary_model)
