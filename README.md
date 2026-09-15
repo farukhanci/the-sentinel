@@ -38,7 +38,11 @@ thing *is*, and reading those by hand cut it further. `wireless power
 transfer` sits in eleven thousand characters and is never once defined.
 
 **The graph is fed by what the user saved, not by everything discussed.** A
-conversation is not evidence.
+conversation is not evidence. Deciding unprompted was tried across five
+phrasings of the instruction: each time the model restated the rule correctly
+in its own reasoning and then ended the turn with an offer instead of a call.
+Waiting to be asked costs nothing, because the alternative was nothing
+happening.
 
 **And the record the fourth gate rests on cannot be edited by the model.**
 `write` refuses a transcript outright — not a retry, a stop, because no
@@ -129,6 +133,13 @@ different shapes of problem.** A summary is holistic and cannot be windowed; a
 4B model at 120k context reads the whole document in one call. Extraction is
 local and windows fine; the 9B walks the concepts window by window.
 
+Summary and concept list, on the other hand, are merged into one call — and
+that merge is safe only because both are extractive over a text that already
+exists. An earlier merge was not: writing the prose *and* bracketing it put a
+generative job and an extractive one in the same call, and the second was done
+unreliably. The Discussion section came back with zero usable markers, because
+the model had wrapped them all in backticks.
+
 ## Two ways in
 
 **Open WebUI** is the everyday one. `openwebui_tool.py` loads into Open WebUI
@@ -162,7 +173,10 @@ with the thinking block on, the model produced 5620 tokens for a two-field
 JSON object, and turning it off took generation from 184 seconds to 2.5.
 
 **`write`, `relocate` and `remove` are real, and there is no
-authentication.** See the security note below.
+authentication.** See the security note below. The index does refuse one
+thing on its own: if every page disappears at once it declines to delete
+anything, because that is an unmounted drive rather than an edit, and a real
+emptying is recovered with an explicit rebuild.
 
 **The vault this runs on is small.** Forty-odd pages. Every gate above is
 covered by a test that fails when the gate is removed, so the mechanism is not
@@ -357,6 +371,13 @@ only lists its strengths is not telling you much.
   ignored and the old code kept answering. The tool file now clears its own
   modules from the cache as it loads.
 - The transcript froze on its first write and stayed frozen.
+
+One conclusion in this file was withdrawn rather than fixed. The 253 seconds
+above were once used to argue for a smaller analysis model; with the cause
+still unknown, model size was never established as the variable, so the
+argument went. The lesson that replaced it is duller and more useful: report
+load, prefill and generation separately. Collapsing them into one total
+produced three wrong diagnoses in a row.
 
 ## Tests
 
