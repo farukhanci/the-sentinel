@@ -67,6 +67,29 @@ tool's schema. So there are seven: `read`, `search`, `listing`, `graph`,
 `write`, `relocate`, `remove`. The schema cost fell with the count: 8188
 tokens for the old 32-tool system, 2214 for these seven.
 
+**A tool result is read as an answer, not as an observation.** The model
+treats what a tool returns as the thing that finishes the turn, and that
+assumption has to be designed around rather than argued with. `[STOP] you
+already searched for this` was read as "no results" and the model searched
+three more times in the same turn, ending on a 900-character query. A `graph`
+listing of concepts with no page yet was read as a list of things to open: it
+guessed at paths and spent eight of twenty tool calls on pages that by
+definition did not exist. So every result opens with a status — `[OK]`,
+`[OK → next]`, `[DONE]`, `[RETRY]`, `[STOP]`, `[more]`, `[note]` — and each
+one answers a different control-flow question. `[RETRY]` and `[STOP]` are
+separate because collapsing them means either retrying the impossible or
+giving up on the fixable. `[more]` exists because a truncated answer is
+indistinguishable from a complete one.
+
+**Rules in the tool schema hold; rules in the system prompt do not.** The same
+instruction was written five ways into the system prompt. Each time the model
+restated it correctly in its own reasoning and then did the opposite. Moved
+into the tool's own description — one sentence — it held immediately. The
+likely reason is that tool-calling training treats the schema as how the tool
+works and the prompt as text that happened to arrive. The cost is real and was
+measured: the descriptions grew from an estimated 1592 tokens to 2214, and
+every token of that difference is a rule that had to be moved after a failure.
+
 Where a parameter exists it is depth of one intent, which is the only kind of
 mode parameter that survives contact with a small model. A combined
 `find(query, kind)` was tried and split back apart: semantic retrieval and
@@ -139,6 +162,51 @@ exists. An earlier merge was not: writing the prose *and* bracketing it put a
 generative job and an extractive one in the same call, and the second was done
 unreliably. The Discussion section came back with zero usable markers, because
 the model had wrapped them all in backticks.
+
+## Four folders
+
+Each one marks a different stage of where something came from, and each stage
+is treated differently.
+
+| | summary search | places links | writing |
+| --- | --- | --- | --- |
+| `notes/` — what you chose to keep | yes | **yes** | free; a path with no folder lands here |
+| `wiki/` — what the sources support | yes | yes | creating refused, editing free |
+| `conversations/` — what was said | no | no | **refused outright** |
+| `sources/` — what was read | no | no | free |
+
+Staying out of summary search is not exclusion: those pages are still found at
+the body rung. Nothing said is lost, it just is not promoted unasked.
+
+Placing links is what feeds the graph, and only the first two do it. The
+direct consequence is that the growth queue counts pages *you* kept, not a
+paper mentioning a term twenty times.
+
+That arrangement is the second one. At first the transcript was the authority:
+if a summary invented something, it would not appear in the raw record, so it
+could not become a concept. The gate worked and the side effect was measured —
+because the transcript placed links, the model's own turns fed the graph. One
+pass produced `Obsidian vault` and `Sentinel`, from the assistant introducing
+itself, and `capacitance of the sphere` and `breakdown field of air`, from
+physics nobody had asked about. None became pages; the definition gate held.
+They filled the queue instead. Reversed — transcripts silent, `notes/` the
+authority — the same pass on the same vault produced `growth queue`,
+`maintenance pass` and `index database`, all from the one page that had been
+deliberately kept. The noise class disappeared entirely.
+
+### Tracing a claim back
+
+Every link in the chain is written by code, not by the model.
+
+A concept page lists in its frontmatter which files it was written from. Each
+of those is a Searcher record under `sources/`, holding the original question,
+the passages taken, and the URL each came from — including the pages the
+reader could not use, listed separately.
+
+A page written from a conversation carries a `Kayıt:` line to its transcript
+under `conversations/`, where the exchange sits verbatim. A page added to from
+several conversations carries one line per conversation, so it shows all of
+its own history rather than half of it.
 
 ## Two ways in
 
