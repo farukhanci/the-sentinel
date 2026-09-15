@@ -359,6 +359,47 @@ The analysis pass runs with thinking off. With it on, the model produced 5620
 tokens for a two-field JSON object; turning it off took generation from 184
 seconds to 2.5.
 
+### None of these has to be local
+
+The roles are independent, and nothing in the design assumes a small model —
+the gates are in the code, so they hold whatever is answering.
+
+**Conversation** is Open WebUI's to decide. It connects to OpenAI-shaped
+providers and to Anthropic directly, under Admin Settings → Connections, and
+whatever model you pick there gets the seven primitives. The tool runs on the
+host and reaches the vault from there, so it does not care who called it.
+
+**Extraction and summaries** take their own flags, and each role is chosen
+separately — a large-context summary model in the cloud and extraction on the
+card is a reasonable split:
+
+```bash
+python3 -m sentinel.maintain --vault ~/obsidian/YourVault \
+    --model qwen3.5-9b-jinja --num-ctx 8192 \
+    --summary-provider openai \
+    --summary-base-url https://api.openai.com/v1 \
+    --summary-api-key-env OPENAI_API_KEY \
+    --summary-model gpt-4o-mini --summary-num-ctx 120000
+```
+
+The key is read from the environment by name, never passed on the command
+line where it would land in shell history and in `ps`. Giving no provider
+flags leaves everything exactly as it was.
+
+Two things are worse over an API, and both are reported rather than hidden.
+The OpenAI shape returns one total instead of load, prefill and generation
+separately — the breakdown that made three wrong diagnoses obvious — so the
+progress line falls back to wall clock. And turning thinking off has no
+standard field: it is sent the way several servers accept it, and if the
+endpoint refuses it or reasons anyway, the run says so once rather than
+quietly paying for it.
+
+One limit cannot be fixed from here. The truncation gate works by comparing
+what the server says it evaluated against the context window; an endpoint that
+returns no `usage` block reports zero, and the gate cannot fire. A page whose
+tail was never read would then be analysed and marked done. There is a test
+standing on that limit so it stays visible.
+
 ## Setup
 
 ### 1. The package
