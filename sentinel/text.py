@@ -285,15 +285,27 @@ def split_frontmatter(text: str) -> tuple[dict[str, str], str]:
     Deliberately a flat `key: value` reader and not a YAML parser: the fields
     this system owns are all scalars, and a dependency here would be paid on
     every sync.
+
+    A line that is indented, or whose stripped form starts with `-`, is
+    skipped rather than read as a key. This system's own fields are all
+    scalars, but a file in the vault can be written by another tool, and
+    the-searcher writes `sources:` as a YAML list. Without this, `partition(":")`
+    split `  - https://example.com` into key `- https` and value `//example.com`,
+    one dict entry per scheme, silently collapsing every list under a shared
+    scheme to its last URL and re-rendering it flat - a real corruption found
+    across the vault, not a hypothetical one.
     """
     m = _FM.match(text)
     if not m:
         return {}, text
     fm: dict[str, str] = {}
     for line in m.group(1).split("\n"):
-        if ":" not in line or line.lstrip().startswith("#"):
+        stripped = line.lstrip()
+        if line != stripped or stripped.startswith("-"):
             continue
-        k, _, v = line.partition(":")
+        if ":" not in stripped or stripped.startswith("#"):
+            continue
+        k, _, v = stripped.partition(":")
         fm[k.strip()] = v.strip().strip("'\"")
     return fm, text[m.end():]
 

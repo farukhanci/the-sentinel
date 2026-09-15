@@ -220,6 +220,29 @@ for _v in ("a: b", "#tag", " leading", "trailing ", "", "- item", "*star"):
 ok("a value with a quote in it is escaped",
    yaml_value('say "hi": now') == '"say \\"hi\\": now"', yaml_value('say "hi": now'))
 
+# --- a foreign writer's YAML list is skipped, not misread -----------------
+# the-searcher writes `sources:` as a real YAML list. This reader is flat by
+# design (see split_frontmatter's docstring); the list lines must be dropped
+# whole, not partitioned into a `- https`/`- http` key holding the last URL.
+_list_doc = (
+    "---\n"
+    "type: source\n"
+    "sources: \"\"\n"
+    "  - https://a.example.com/one\n"
+    "  - https://b.example.com/two\n"
+    "  - http://c.example.com/three\n"
+    "---\n\n# Body\n"
+)
+_list_fm, _list_body = split_frontmatter(_list_doc)
+ok("a YAML list line is not read as a key",
+   "- https" not in _list_fm and "- http" not in _list_fm, str(_list_fm))
+ok("scalar fields around a foreign list still parse",
+   _list_fm.get("type") == "source", str(_list_fm))
+ok("the list lines are dropped, not collapsed into one bogus key",
+   len(_list_fm) == 2, str(_list_fm))
+ok("the body is unaffected by a list in frontmatter",
+   _list_body == "\n# Body\n", repr(_list_body))
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed\n")
 for f in FAIL:
     print("  FAIL  " + f)
