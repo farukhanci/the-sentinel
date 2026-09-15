@@ -164,6 +164,12 @@ JSON object, and turning it off took generation from 184 seconds to 2.5.
 **`write`, `relocate` and `remove` are real, and there is no
 authentication.** See the security note below.
 
+**The vault this runs on is small.** Forty-odd pages. Every gate above is
+covered by a test that fails when the gate is removed, so the mechanism is not
+in doubt — but keeping a knowledge base from filling with low-information
+pages is a claim about scale, and this has not been run at scale. The numbers
+quoted in this file come from that vault, not from a large one.
+
 ## Requirements
 
 - Python 3.11 or later, with `venv` and `pip`
