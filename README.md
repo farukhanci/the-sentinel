@@ -8,8 +8,9 @@ bounded depth, and writes back. A nightly pass summarises new pages, extracts
 the concepts they refer to, and embeds them, so the search substrate stays
 current without anyone typing a command.
 
-Everything runs locally — a 9B orchestrator on a 6 GB card, embeddings on the
-CPU. No API keys.
+Everything runs locally by default — a 9B orchestrator on a 6 GB card,
+embeddings on the CPU, no account anywhere. Any role can be pointed at a
+cloud model instead; the gates are in the code, so they hold either way.
 
 ## Why it is built this way
 
@@ -219,7 +220,8 @@ conversation and finds the file again by `chat_id`.
 **`sentinel.chat`** goes straight to Ollama and runs the harness: the tool
 loop, the status markers that drive control flow, and token accounting. Use
 it when something needs diagnosing — `/steps`, `/budget`, `/reset` show you
-what Open WebUI hides.
+what Open WebUI hides. This path is Ollama-only; a cloud model reaches the
+same seven primitives through Open WebUI instead.
 
 An HTTP tool server used to be a third path. It was removed: it could not see
 `__messages__`, so capture could not work through it, and its reason for
@@ -246,7 +248,7 @@ thing on its own: if every page disappears at once it declines to delete
 anything, because that is an unmounted drive rather than an edit, and a real
 emptying is recovered with an explicit rebuild.
 
-**The vault this runs on is small.** Forty-odd pages. Every gate above is
+**The vault this runs on is small.** 46 files. Every gate above is
 covered by a test that fails when the gate is removed, so the mechanism is not
 in doubt — but keeping a knowledge base from filling with low-information
 pages is a claim about scale, and this has not been run at scale. The numbers
@@ -465,8 +467,15 @@ The loader accepts `<dir>/onnx/model.onnx` or `<dir>/model.onnx`, with
 python3 -m sentinel.chat \
     --vault ~/obsidian/YourVault \
     --model hf.co/AtomicChat/Ornith-1.5-9B-GGUF:IQ4_XS \
+    --num-ctx 35000 \
     --embed-model models/multilingual-e5-small
 ```
+
+35000 is what that model takes on this card, not a setting to copy. Find your
+own: keep `num_gpu` high enough to put every layer on the card, then lower
+`--num-ctx` until `ollama ps` reports 100% GPU instead of a CPU/GPU split.
+The split is the thing to avoid, and that readout is the only reliable way
+to see it.
 
 Leave `--embed-model` out and it still runs — on the literal half of search
 alone, quietly, with no error. That is half the substrate missing and nothing
@@ -481,9 +490,14 @@ existing vault this takes a while, so start it and leave it:
 python3 -m sentinel.maintain \
     --vault ~/obsidian/YourVault \
     --model qwen3.5-9b-jinja --num-ctx 8192 \
+    --summary-model qwen3.5-4b-xl --summary-num-ctx 120000 \
     --embed-model models/multilingual-e5-small \
     --minutes 60
 ```
+
+`--summary-model` is what gives summaries the whole document at once, which
+is the split the Models table above describes. The two models are loaded one
+after the other, not per page.
 
 `--dry-run` first counts what the vault owes without touching the model, which
 is worth knowing before a first run of unknown length. The folders the system
@@ -552,6 +566,7 @@ summaries and concepts, then embeddings over the chunks analysis just made.
 ```bash
 python3 -m sentinel.timer --install \
     --vault ~/obsidian/YourVault --model your-model:latest \
+    --summary-model your-summary-model --summary-num-ctx 120000 \
     --embed-model models/multilingual-e5-small \
     --at 23:00 --minutes 30
 ```
@@ -617,8 +632,13 @@ into the vault's `sources/` directory. Neither repository imports the other.
 What joins them is the system prompt, which describes `research` alongside
 the seven vault primitives and says when each applies: the vault first, the
 web only when the user asks for it, and an empty vault is not itself a reason
-to go looking. Run the Sentinel without the Searcher and everything works
-except that one tool.
+to go looking.
+
+They are installed separately: the Searcher runs as its own service and is
+registered in Open WebUI under Settings → Tools as an external tool server.
+Run the Sentinel without it and everything works except that one tool — the
+prompt will still describe `research`, which is worth trimming if you are not
+going to install it.
 
 ## License
 
