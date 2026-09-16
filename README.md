@@ -235,7 +235,7 @@ The gates above stop the system inventing *new* material — they say nothing
 about whether what you saved was right.
 
 **Maintenance does not run during a conversation.** The analysis model and the
-conversation model cannot share a 6 GB card, so a pass evicts whatever is
+conversation model do not fit on a card this size at once, so a pass evicts
 loaded. It runs overnight, on a timer, and surfaces itself through the health
 line rather than interrupting. It is not slow — about 12 seconds a page; seven
 pages took 139 seconds and two took 30 on the last passes. It was slow once:
@@ -324,7 +324,7 @@ subject, and it is left to the person.
 - [Ollama](https://ollama.com) with a tool-calling model
 - An Obsidian vault — any directory of markdown files with frontmatter
 - multilingual-e5-small as ONNX, on disk
-- A GPU the orchestrator fits on; embeddings run on the CPU
+- A GPU with 4 GB or more; embeddings run on the CPU, and the measured numbers are under Models below
 
 On a bare Debian or Ubuntu, the system packages come first:
 
@@ -356,8 +356,8 @@ forces a full re-embed.
 
 Context size is a per-model measurement, not a constant. `CONTEXT_TOKENS` in
 `harness.py` is 17000, the figure the design was sized around; in practice
-17000 gave CUDA OOM, and the two models in use run at 12288 and 35000.
-Measure yours.
+17000 gave CUDA OOM on one model and another runs at 35000. What each takes
+is measured under Models below; the method for finding your own is in step 4.
 
 ## Models
 
