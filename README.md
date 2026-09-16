@@ -236,7 +236,7 @@ about whether what you saved was right.
 
 **Maintenance does not run during a conversation.** The analysis model and the
 conversation model do not fit on a card this size at once, so a pass evicts
-loaded. It runs overnight, on a timer, and surfaces itself through the health
+whatever is loaded. It runs overnight, on a timer, and surfaces itself through the health
 line rather than interrupting. It is not slow — about 12 seconds a page; seven
 pages took 139 seconds and two took 30 on the last passes. It was slow once:
 with the thinking block on, the model produced 5620 tokens for a two-field
