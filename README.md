@@ -341,6 +341,17 @@ The package itself has no POSIX dependency and the stored paths are
 normalised, so it should also run on Windows directly — but nothing here has
 been run that way, and the units and Docker flags in this file assume Linux.
 
+On Windows, run it under WSL2 and follow the Linux instructions as written —
+the systemd units, the timer and the Docker paths all work there unchanged.
+Two things to get right: keep the vault inside the WSL filesystem rather than
+under `/mnt/c`, where crossing the boundary costs more than it sounds like it
+should, and check that systemd is enabled (`systemctl --user status` answers
+if it is; otherwise `systemd=true` under `[boot]` in `/etc/wsl.conf`).
+
+The package itself has no POSIX dependency and the stored paths are
+normalised, so it should also run on Windows directly — but nothing here has
+been run that way, and the units and Docker flags in this file assume Linux.
+
 Embeddings run on the CPU on purpose: search must never compete with the
 conversation model for VRAM. multilingual-e5-small was chosen over
 bge-small-en-v1.5 because that one is English-only and would have failed
