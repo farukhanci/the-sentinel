@@ -376,6 +376,28 @@ The analysis pass runs with thinking off. With it on, the model produced 5620
 tokens for a two-field JSON object; turning it off took generation from 184
 seconds to 2.5.
 
+### What they actually take
+
+Measured on an RTX 4050 Mobile with the desktop on the integrated GPU, so the
+card held nothing but the model — `num_gpu` high enough that `ollama ps`
+reported the whole thing on the GPU, and read after a first request so the KV
+cache was populated.
+
+| Model | Context | VRAM |
+| --- | --- | --- |
+| `qwen3.5-4b-xl` | 35000 | 3.7 GB |
+| `qwen3.5-4b-xl` | 120000 | 5.6 GB |
+| `hf.co/AtomicChat/Ornith-1.5-9B-GGUF:IQ4_XS` | 35000 | 5.6 GB |
+
+The context window matters about as much as the model does: the 4B at 120k
+costs what the 9B costs at 35k. That is why the table above is a record of
+measurements rather than a recommendation.
+
+**On a 4 GB card** the 4B model at 35000 fits with room to spare, and it can
+take all three roles. The conversation gets worse — a 4B answering is not a
+9B answering — but nothing about the design changes, because the gates are in
+the code rather than in the model's judgement.
+
 ### None of these has to be local
 
 The roles are independent, and nothing in the design assumes a small model —
