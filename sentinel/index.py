@@ -388,7 +388,19 @@ class Index:
         on_disk = set()
 
         for f in sorted(self.vault.rglob("*.md")):
-            rel = str(f.relative_to(self.vault))
+            # `.as_posix()` and NOT `str()`. THIS IS WHERE EVERY PATH IN THE
+            # SYSTEM IS BORN - one INSERT, and every rule downstream is a
+            # string test against what it produces: the fourth gate's
+            # `path.startswith(sources + "/")`, the refusal to write into
+            # `wiki/`, the exclusion list four lines below, `by_path`'s
+            # `LIKE 'folder/%'`, and every `rsplit("/", 1)` that takes a page
+            # name off the end.
+            #
+            # On Windows `str()` gives `wiki\afterglow.md`, so not one of them
+            # matches and NONE OF THEM SAY SO - the gates do not fail, they
+            # quietly decide the page is not in that folder. On Linux the two
+            # are identical, which is exactly why it survived this long.
+            rel = f.relative_to(self.vault).as_posix()
             # `.trash` is Obsidian's own deleted-pages folder, `.obsidian` its
             # config, `.git` history. Measured on the real vault: three of the
             # first pages the scan reported were deleted ones, whose links

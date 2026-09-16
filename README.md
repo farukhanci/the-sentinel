@@ -562,7 +562,7 @@ for t in run_tests test_index test_search test_tools test_write test_analysis \
 done
 ```
 
-655 checks over fifteen modules. The `field_test_*` modules are separate:
+659 checks over fifteen modules. The `field_test_*` modules are separate:
 they run against a real vault and a real model rather than fixtures, and they
 take minutes.
 

@@ -313,6 +313,85 @@ for name, t in timings.items():
     # noise. The real number is always printed below.
     ok(f"{name} under 50 ms", t < 50.0, f"{t:.3f} ms")
 
+# --- the separator every rule downstream depends on -----------------------
+#
+# `sync` is where every path in the system is born, and on Windows
+# `str(f.relative_to(vault))` gives `wiki\afterglow.md`. Every folder rule
+# there is - the fourth gate's `startswith(sources + "/")`, the refusal to
+# write into `wiki/`, the exclusion list, `by_path`'s `LIKE 'folder/%'`,
+# every `rsplit("/", 1)` - is a string test for "/", so on Windows all of
+# them quietly decide the page is not in that folder. Nothing raises.
+#
+# On Linux `str()` and `.as_posix()` return the same thing, so the fix cannot
+# be tested by running on Linux. What CAN be done is make `relative_to`
+# answer the way Windows would, and run the real `sync` against it.
+from pathlib import PureWindowsPath  # noqa: E402
+
+
+class WinFile:
+    """A real file that answers `relative_to` with a backslash.
+
+    Everything else - `stat`, `read_text` - is the real file, so what runs is
+    the real scan and not a simulation of it.
+    """
+
+    def __init__(self, real: Path, root: Path):
+        self._real, self._root = real, root
+
+    def relative_to(self, other):
+        # `other` is the proxy vault; the real root is held here instead.
+        return PureWindowsPath(self._real.relative_to(self._root))
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def __lt__(self, other):            # `sync` sorts what rglob yields
+        return str(self._real) < str(other._real)
+
+
+class WinVault:
+    def __init__(self, real: Path):
+        self._real = real
+
+    def rglob(self, pattern):
+        return [WinFile(p, self._real) for p in self._real.rglob(pattern)]
+
+    def __truediv__(self, other):       # a dunder, so __getattr__ never sees it
+        return self._real / other
+
+    def __getattr__(self, name):        # is_dir, and the rest
+        return getattr(self._real, name)
+
+
+wtmp = Path(tempfile.mkdtemp())
+wvault = wtmp / "vault"
+(wvault / "wiki").mkdir(parents=True)
+(wvault / "sources").mkdir()
+PAGE = ("---\ntype: note\norigin: user\nsummary: A page about the afterglow.\n"
+        "summary_provisional: 0\n---\n\n# Page\n\nText about the afterglow.\n")
+(wvault / "wiki" / "afterglow.md").write_text(PAGE, encoding="utf-8")
+(wvault / "sources" / "paper.md").write_text(PAGE, encoding="utf-8")
+
+widx = Index(wvault, wtmp / "win.db")
+widx.vault = WinVault(wvault)
+widx.sync()
+stored = sorted(r["path"] for r in widx.db.execute("SELECT path FROM files"))
+ok("a Windows separator never reaches the stored path",
+   stored == ["sources/paper.md", "wiki/afterglow.md"], str(stored))
+ok("so the address every tool uses still resolves",
+   widx.meta("wiki/afterglow.md") is not None,
+   str([r["path"] for r in widx.db.execute("SELECT path FROM files")]))
+rows, total = widx.by_path("wiki")
+ok("and a folder rule further downstream still matches",
+   total == 1 and rows[0]["path"] == "wiki/afterglow.md", f"{total} {rows}")
+
+wex = Index(wvault, wtmp / "win-exclude.db", exclude=["wiki"])
+wex.vault = WinVault(wvault)
+wex.sync()
+kept = sorted(r["path"] for r in wex.db.execute("SELECT path FROM files"))
+ok("the exclusion rule holds - it is four lines from the bug and reads the "
+   "same string", kept == ["sources/paper.md"], str(kept))
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed\n")
 for f in FAIL:
     print("  FAIL  " + f)
