@@ -327,19 +327,12 @@ subject, and it is left to the person.
 On a bare Debian or Ubuntu, the system packages come first:
 
 ```bash
-sudo apt install git python3 python3-venv python3-pip
+sudo apt install git python3 python3-venv python3-pip docker.io
+sudo usermod -aG docker $USER   # then log out and back in
 ```
 
-On Windows, run it under WSL2 and follow the Linux instructions as written —
-the systemd units, the timer and the Docker paths all work there unchanged.
-Two things to get right: keep the vault inside the WSL filesystem rather than
-under `/mnt/c`, where crossing the boundary costs more than it sounds like it
-should, and check that systemd is enabled (`systemctl --user status` answers
-if it is; otherwise `systemd=true` under `[boot]` in `/etc/wsl.conf`).
-
-The package itself has no POSIX dependency and the stored paths are
-normalised, so it should also run on Windows directly — but nothing here has
-been run that way, and the units and Docker flags in this file assume Linux.
+The Docker part is only needed for Open WebUI. Without the group change every
+`docker` command fails on a permission error at the socket.
 
 On Windows, run it under WSL2 and follow the Linux instructions as written —
 the systemd units, the timer and the Docker paths all work there unchanged.
@@ -479,6 +472,24 @@ Leave `--embed-model` out and it still runs — on the literal half of search
 alone, quietly, with no error. That is half the substrate missing and nothing
 says so, which is why it is in every command in this file.
 
+**Run the maintenance pass once before you rely on search.** Summaries and
+concepts come from the analysis pass, and the summary rung — the one search
+normally stops at — has nothing to stop at until that pass has run. On an
+existing vault this takes a while, so start it and leave it:
+
+```bash
+python3 -m sentinel.maintain \
+    --vault ~/obsidian/YourVault \
+    --model qwen3.5-9b-jinja --num-ctx 8192 \
+    --embed-model models/multilingual-e5-small \
+    --minutes 60
+```
+
+`--dry-run` first counts what the vault owes without touching the model, which
+is worth knowing before a first run of unknown length. The folders the system
+uses — `notes/`, `wiki/`, `conversations/`, `sources/` — are created when
+something is first written to them; an empty vault needs no preparation.
+
 ## Open WebUI
 
 Open WebUI runs in Docker here, so it needs two bind mounts: this repository,
@@ -492,11 +503,17 @@ docker run -d --name open-webui -p 3000:8080 \
   -v open-webui:/app/backend/data \
   -v ~/the-sentinel:/sentinel:ro \
   -v ~/obsidian/YourVault:/vault \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
   ghcr.io/open-webui/open-webui:main
 ```
 
-Open WebUI is then at `http://localhost:3000`. `--user` is not optional in
-practice: a container running as root writes root-owned files into the vault,
+Open WebUI is then at `http://localhost:3000`. Ollama runs on the host, and
+`127.0.0.1` inside a container is the container — hence `--add-host` and the
+base URL together. It can also be set afterwards under Settings →
+Connections, but a container that comes up already knowing where Ollama is
+saves finding out the hard way that the model list is empty.
+
+`--user` is not optional in practice: a container running as root writes root-owned files into the vault,
 and nothing on the host can edit them afterwards. A bind mount cannot be added
 to a running container, so an existing one has to be recreated — the data
 survives in the named volume.
@@ -545,6 +562,9 @@ unit, so it points at the right Python. Check that it took:
 ```bash
 systemctl --user list-timers sentinel-maintenance.timer
 ```
+
+And `loginctl enable-linger $USER`, or the user session — and every timer in
+it — ends when you log out. On a system without polkit that needs `sudo`.
 
 A user timer rather than a system one: the vault is in a home directory and
 Ollama runs as the user, so a system unit would need permissions it has no
