@@ -398,6 +398,31 @@ take all three roles. The conversation gets worse — a 4B answering is not a
 9B answering — but nothing about the design changes, because the gates are in
 the code rather than in the model's judgement.
 
+**On a bigger card, spend it on the conversation and nowhere else.** That is
+the one role where a better model produces a better result. On 24 GB a Q4
+build of something in the 27B class fits with context to spare — Qwen3.8-27B's
+Q4_K_M is around 16 GB of weights, which is why 24 GB rather than 16 GB is the
+honest floor for it.
+
+Upgrading extraction or summaries is close to pointless. Both are transport
+jobs: copy the concepts as they appear in the text, say what this page is.
+Both run at `temperature: 0` for that reason, with no sampling parameters at
+all — the same page should produce the same concepts. A larger model does that
+work more slowly and no more correctly. The 9B already scores its own output
+past every gate; the gates are what decide, not the model's judgement.
+
+More context is not automatically better either. The conversation model in use
+holds up to about 32k and degrades past it, so the headroom goes into fitting
+the model comfortably rather than into a larger window. Measure where yours
+starts to drift.
+
+What a bigger card would genuinely unlock is the one constraint this design
+works around: the analysis and conversation models cannot be resident at once,
+which is why maintenance runs at night. With room for both, maintenance could
+run when the vault is idle rather than on a timer. Nothing here does that —
+the pass is written to be scheduled, and making it opportunistic is a change
+to the maintenance loop, not a setting.
+
 ### None of these has to be local
 
 The roles are independent, and nothing in the design assumes a small model —
