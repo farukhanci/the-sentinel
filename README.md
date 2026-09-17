@@ -591,11 +591,29 @@ inside the repository. Leave the index path empty unless you have a reason —
 empty means the tool derives it the same way every other entry point does,
 and a second copy of that path is how the index once split in two.
 
-Then give the model the system prompt in `openwebui_system_prompt.txt`. It is
-not optional decoration: it is where the ladder is explained, where writing is
+Then make a model. Workspace → Models → + takes a base model and wraps it
+with everything this needs in one place, which is where the rest of the setup
+lives:
+
+**The system prompt** — the contents of `openwebui_system_prompt.txt`. Not
+optional decoration: it is where the ladder is explained, where writing is
 tied to the user asking for it rather than the model deciding, and where the
 status markers are defined. Without it the model has seven tools and no idea
 when to stop.
+
+**The tool**, ticked on for this model.
+
+**The sampling and runtime parameters**, under Advanced Params on the same
+screen. The values in the Models table above go here, and one of them is not
+cosmetic: `num_gpu`. Leave it unset and Ollama uses its own estimate of what
+fits, which leaves part of the model on the CPU — the system works and is
+slow, with nothing anywhere saying why. Set it high enough to mean every
+layer, and set `num_ctx` to whatever you measured. `ollama ps` while a
+conversation is running tells you which of the two happened.
+
+This is the step to get right. The first person other than me to install this
+did everything else correctly, left the parameters at their defaults, and got
+a system that ran at a fraction of the speed with no error to explain it.
 
 Reloading matters. Open WebUI caches tool modules, so an edit on the host is
 silently ignored and the old code keeps answering. The tool file drops
