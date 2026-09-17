@@ -323,7 +323,9 @@ subject, and it is left to the person.
 
 - Python 3.11 or later, with `venv` and `pip`
 - [Ollama](https://ollama.com) with a tool-calling model
-- An Obsidian vault — any directory of markdown files with frontmatter
+- A vault — any directory of markdown files with frontmatter. Nothing here
+  needs [Obsidian](https://obsidian.md) running, but one thing needs it
+  installed; see step 4 below
 - multilingual-e5-small as ONNX, on disk
 - A GPU with 4 GB or more; embeddings run on the CPU, and the measured numbers are under Models below
 
@@ -358,7 +360,7 @@ forces a full re-embed.
 Context size is a per-model measurement, not a constant. `CONTEXT_TOKENS` in
 `harness.py` is 17000, the figure the design was sized around; in practice
 17000 gave CUDA OOM on one model and another runs at 35000. What each takes
-is measured under Models below; the method for finding your own is in step 4.
+is measured under Models below; the method for finding your own is in step 5.
 
 ## Models
 
@@ -509,7 +511,29 @@ without a second mount to remember. `models/` is gitignored.
 The loader accepts `<dir>/onnx/model.onnx` or `<dir>/model.onnx`, with
 `tokenizer.json` beside it either way, and says which one is missing if one is.
 
-### 4. Talk to the vault
+### 4. The vault
+
+Any directory will do, and the folders the system uses appear the first time
+something is written into them:
+
+```bash
+mkdir -p ~/obsidian/YourVault
+```
+
+That is enough for everything except one thing, and the exception is worth
+setting up now. A concept the sources define gets written by the maintenance
+pass on its own. A concept you want a page for *before* that happens is
+created by hand — and the way you do it is to click the faded link in
+[Obsidian](https://obsidian.md) and let it make the file, because the model
+is refused when it tries to create a page under `wiki/` itself.
+
+So: install Obsidian, open that directory with **Open folder as vault**, and
+under Settings → Files and links set **Default location for new notes** to a
+folder — `wiki/`, if you want faded links to land where concept pages live.
+Obsidian puts new files wherever that setting says, and a link clicked into
+existence follows it.
+
+### 5. Talk to the vault
 
 ```bash
 python3 -m sentinel.chat \
