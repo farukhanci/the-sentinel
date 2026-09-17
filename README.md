@@ -513,11 +513,12 @@ The loader accepts `<dir>/onnx/model.onnx` or `<dir>/model.onnx`, with
 
 ### 4. The vault
 
-Any directory will do, and the folders the system uses appear the first time
-something is written into them:
+Any directory will do. The system creates its folders the first time it
+writes into one, but make them now anyway — the Obsidian setting below is a
+folder picker, and on an empty vault there is nothing to pick:
 
 ```bash
-mkdir -p ~/obsidian/YourVault
+mkdir -p ~/obsidian/YourVault/{notes,wiki,conversations,sources}
 ```
 
 That is enough for everything except one thing, and the exception is worth
@@ -531,7 +532,9 @@ So: install Obsidian, open that directory with **Open folder as vault**, and
 under Settings → Files and links set **Default location for new notes** to a
 folder — `wiki/`, if you want faded links to land where concept pages live.
 Obsidian puts new files wherever that setting says, and a link clicked into
-existence follows it.
+existence follows it — as long as the link is a plain name, which the ones
+this system writes are. A link with a folder in it (`[[wiki/thing]]`) ignores
+the setting and goes where the link says instead.
 
 ### 5. Talk to the vault
 
@@ -574,7 +577,9 @@ after the other, not per page.
 `--dry-run` first counts what the vault owes without touching the model, which
 is worth knowing before a first run of unknown length. The folders the system
 uses — `notes/`, `wiki/`, `conversations/`, `sources/` — are created when
-something is first written to them; an empty vault needs no preparation.
+something is first written to them, so nothing here needs a prepared vault.
+Step 4 makes them up front anyway, for a reason that belongs to Obsidian
+rather than to this.
 
 ## Open WebUI
 
