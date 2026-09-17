@@ -211,8 +211,9 @@ its own history rather than half of it.
 
 ## Two ways in
 
-**Open WebUI** is the everyday one. `openwebui_tool.py` loads into Open WebUI
-and hands the seven primitives to whatever model you are talking to. It is
+**[Open WebUI](https://docs.openwebui.com)** is the everyday one.
+`openwebui_tool.py` loads into it and hands the seven primitives to whatever
+model you are talking to. It is
 also the only path that can see `__messages__` and `__metadata__`, which is
 what the raw capture mechanism is built on: the code copies the whole
 conversation and finds the file again by `chat_id`.
