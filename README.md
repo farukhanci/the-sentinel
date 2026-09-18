@@ -1,6 +1,6 @@
 # The Sentinel
 
-An Obsidian vault a model can read and write through seven primitives.
+A second brain a model cannot pollute with its own output.
 
 The Sentinel puts a local model in front of a markdown vault: it searches by
 meaning and by wording at once, follows the link structure, opens pages to a
@@ -47,12 +47,26 @@ produced.
 **It stays small on purpose, and that is the token story.** Every page is read
 in its own context rather than ten in one. Only verified passages cross
 between layers, so the planner sees 150–300 tokens per page instead of
-thousands. Search stops at a summary rung — one line per hit, about 75 tokens
-for five — and only descends into page bodies when those summaries showed a
-page was relevant without holding the answer. A large document is read in
-overlapping windows, which is the shape that usually costs a small model its
-grip on the whole; here the summary layer carries the whole while the windows
-carry the detail, so neither has to do both.
+thousands. A large document is read in overlapping windows, which is the shape
+that usually costs a small model its grip on the whole; here the summary layer
+carries the whole while the windows carry the detail, so neither has to do
+both.
+
+The rung structure is where that adds up. Search stops at a summary layer —
+one line per hit saying what that page is, about 75 tokens for five hits — and
+only descends into page bodies when those summaries showed a page was relevant
+without holding the answer. Most questions end at the cheap rung.
+
+Worth putting next to the published figures. Stuffing a corpus into the window
+costs what the corpus costs: one documented case sent 150,000 tokens per
+request. Retrieval instead of stuffing is the standard answer and lands at a
+few thousand tokens a query — a June 2026 study measured the per-query gap at
+26x for document-grounded question answering, and a practitioner comparison of
+the same corpus both ways put it near 30x. Those few thousand tokens are the
+floor for a system with one retrieval mode, because it pays them on every
+question. Here the summary rung answers most of them for a fraction of that,
+and the chunk retrieval those numbers describe is the *second* rung, reached
+only when the first was not enough.
 
 **The link graph is written out as text.** A graph is machine-readable
 already, but not in the form a language model reads. So the structure is
@@ -290,21 +304,7 @@ authority — the same pass on the same vault produced `growth queue`,
 `maintenance pass` and `index database`, all from the one page that had been
 deliberately kept. The noise class disappeared entirely.
 
-### Tracing a claim back
-
-Every link in the chain is written by code, not by the model.
-
-A concept page lists in its frontmatter which files it was written from. Each
-of those is a Searcher record under `sources/`, holding the original question,
-the passages taken, and the URL each came from — including the pages the
-reader could not use, listed separately.
-
-A page written from a conversation carries a `Kayıt:` line to its transcript
-under `conversations/`, where the exchange sits verbatim. A page added to from
-several conversations carries one line per conversation, so it shows all of
-its own history rather than half of it.
-
-## Two ways in
+### Two ways in
 
 **[Open WebUI](https://docs.openwebui.com)** is the everyday one.
 `openwebui_tool.py` loads into it and hands the seven primitives to whatever
@@ -344,11 +344,7 @@ thing on its own: if every page disappears at once it declines to delete
 anything, because that is an unmounted drive rather than an edit, and a real
 emptying is recovered with an explicit rebuild.
 
-**The vault this runs on is small.** 46 files. Every gate above is
-covered by a test that fails when the gate is removed, so the mechanism is not
-in doubt — but keeping a knowledge base from filling with low-information
-pages is a claim about scale, and this has not been run at scale. The numbers
-quoted in this file come from that vault, not from a large one.
+**The vault this runs on is small.** 46 files — see *What is unproven* above.
 
 ## How it is meant to be used
 
