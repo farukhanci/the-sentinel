@@ -12,6 +12,101 @@ Everything runs locally by default — a 9B orchestrator on a 6 GB card,
 embeddings on the CPU, no account anywhere. Any role can be pointed at a
 cloud model instead; the gates are in the code, so they hold either way.
 
+## What this is for
+
+Second brains built on an LLM share one failure, and it is structural rather
+than incidental. The model writes a page into the notes, that page is read
+back on the next pass, and its own output becomes its own source. Nothing in
+the loop distinguishes what a human recorded from what the system inferred,
+so the collection fills with plausible material nobody ever said. The usual
+answer is a better prompt and a better model — one clever model carrying the
+whole load, asked nicely to be careful.
+
+This takes the load off the model instead, and puts it where it can be
+checked.
+
+**The decision path is deterministic. The model is not.** That distinction is
+the whole design. A language model is stochastic and will stay stochastic; no
+amount of prompting changes that. So it is never asked to decide anything.
+It is asked to transport: copy the concepts as they appear in this text, say
+what this page is about, tell me whether these two names mean the same thing.
+Every one of those has an answer code can verify, and the verification is
+what decides. Which concepts enter the graph, which pages get written, what
+gets linked — all of it is settled by rules that run the same way every time,
+over output the model produced. Run the same vault twice and the same gates
+make the same calls.
+
+**The layers are independent, and that independence is what makes it
+deterministic.** Reading, extraction, summarisation, name resolution, and
+writing are separate passes with separate contexts. Each one hands the next a
+narrow, checkable artifact rather than a conversation. Nothing accumulates
+across them, so nothing drifts across them either — a layer cannot be
+corrupted by what a previous layer inferred, only by what it verifiably
+produced.
+
+**It stays small on purpose, and that is the token story.** Every page is read
+in its own context rather than ten in one. Only verified passages cross
+between layers, so the planner sees 150–300 tokens per page instead of
+thousands. Search stops at a summary rung — one line per hit, about 75 tokens
+for five — and only descends into page bodies when those summaries showed a
+page was relevant without holding the answer. A large document is read in
+overlapping windows, which is the shape that usually costs a small model its
+grip on the whole; here the summary layer carries the whole while the windows
+carry the detail, so neither has to do both.
+
+**The link graph is written out as text.** A graph is machine-readable
+already, but not in the form a language model reads. So the structure is
+rendered into prose: what points at what, which names resolve to no page at
+all. The model gets the shape of the collection rather than a pile of
+documents, and its synthesis improves because it can see how things connect
+before it opens anything.
+
+**Nothing decides a thing in two places.** The path to the index, where a
+write lands, what the folders are called — each of these is settled by one
+function that everything else asks. This sounds like housekeeping and is not:
+the one time it was violated, two components wrote to two different databases
+and both worked, separately, for days.
+
+### Why this suits research
+
+Everything above adds up to a property an academic needs and a chat interface
+cannot offer: a claim can be walked back to its origin, and every link in that
+chain was written by code.
+
+A concept page lists the files it was written from. Each of those is a record
+holding the original question, the passages taken, and the URL each passage
+came from — including the pages that were fetched and could not be used,
+listed separately. A page written from a conversation carries a line pointing
+at the transcript, which sits verbatim and which the model is refused
+permission to edit. A page built from several conversations carries one line
+for each.
+
+Two things fill that source folder. The web-research service writes into it,
+and you can paste into it — a PDF, a paywalled article, a scan you typed up.
+Material put there by hand is treated exactly like material fetched: indexed,
+summarised, searchable at the body rung, and held out of the summary rung so
+it never speaks as though you had endorsed it.
+
+This is in daily use by an academic working on a literature synthesis across
+several languages — simple questions to find the shape of a field, deeper ones
+once the sources are in, and articles pasted in by hand where the web cannot
+reach them. What matters there is not that the answers are good. It is that
+nothing in them is invented, and that the ones that are wrong are wrong in a
+way you can trace.
+
+### What is unproven
+
+The architecture is not a variation on something established — I looked for
+prior work that puts these checks in code rather than in the prompt and did
+not find it, and would genuinely like to be shown otherwise.
+
+That cuts both ways. Novel means untested by anyone else. Every gate here is
+covered by a test that fails when the gate is removed, so the mechanism does
+what it says. Whether it holds a collection clean at ten thousand pages is a
+claim about scale, and this has run on forty-six files. The numbers in this
+file come from that vault. Finding the limits is what a second pair of hands
+would be for.
+
 ## Why it is built this way
 
 Two questions shaped everything. What does a small model on a small card
