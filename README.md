@@ -30,9 +30,13 @@ the whole design. A language model is stochastic and will stay stochastic; no
 amount of prompting changes that. So it is never asked to decide anything.
 It is asked to transport: copy the concepts as they appear in this text, say
 what this page is about, tell me whether these two names mean the same thing.
-Every one of those has an answer code can verify, and the verification is
-what decides. Which concepts enter the graph, which pages get written, what
-gets linked — all of it is settled by rules that run the same way every time,
+The answers that decide anything are the ones code can check, and those are
+checked: a concept that does not appear verbatim in the text is dropped, and
+a merge that does not hold when the pair is swapped and the question asked
+again is not made. The summary is not checked that way, which is why nothing
+is decided from it. Which concepts enter the graph, which pages get written,
+what gets linked — all of it is settled by rules that run the same way every
+time,
 over output the model produced. Run the same vault twice and the same gates
 make the same calls.
 
@@ -40,9 +44,11 @@ make the same calls.
 deterministic.** Reading, extraction, summarisation, name resolution, and
 writing are separate passes with separate contexts. Each one hands the next a
 narrow, checkable artifact rather than a conversation. Nothing accumulates
-across them, so nothing drifts across them either — a layer cannot be
-corrupted by what a previous layer inferred, only by what it verifiably
-produced.
+across them, so nothing drifts across them either. Two rules carry that
+rather than a promise: a derived page may point at concepts the graph already
+has and may not add new ones, and a concept page takes its material only from
+pages that are not derived. The system's own output can be read back; it
+cannot become the source the next generation is written from.
 
 **It stays small on purpose, and that is the token story.** The analysis pass
 reads each page in its own clean context — one model, one read, two structured
@@ -88,19 +94,21 @@ Everything above adds up to a property an academic needs and a chat interface
 cannot offer: a claim can be walked back to its origin, and every link in that
 chain was written by code.
 
-A concept page lists the files it was written from. Each of those is a record
-holding the original question, the passages taken, and the URL each passage
-came from — including the pages that were fetched and could not be used,
-listed separately. A page written from a conversation carries a line pointing
-at the transcript, which sits verbatim and which the model is refused
-permission to edit. A page built from several conversations carries one line
-for each.
+A concept page lists the files it was written from. Where one of those is a
+web source, it is a record holding the original question, the passages taken,
+and the URL each passage came from — including the pages that were fetched
+and could not be used, listed separately. A page written from a conversation
+carries a line pointing at the transcript, which sits verbatim and which the
+model is refused permission to edit. A page built from several conversations
+carries one line for each.
 
 Two things fill that source folder. The web-research service writes into it,
-and you can paste into it — a PDF, a paywalled article, a scan you typed up.
-Material put there by hand is treated exactly like material fetched: indexed,
-summarised, searchable at the body rung, and held out of the summary rung so
-it never speaks as though you had endorsed it.
+and you can paste into it — the text of a paywalled article, a scan you typed
+up — as a markdown note in that folder. The index reads `*.md` and nothing
+else, so a PDF dropped in as a file is not read; its text pasted into a note
+is. Material put there by hand is treated exactly like material fetched:
+indexed, summarised, searchable at the body rung, and held out of the summary
+rung so it never speaks as though you had endorsed it.
 
 This is in daily use by an academic working on a literature synthesis across
 several languages — simple questions to find the shape of a field, deeper ones
@@ -117,10 +125,17 @@ not find it, and would genuinely like to be shown otherwise.
 
 That cuts both ways. Novel means untested by anyone else. Every gate here is
 covered by a test that fails when the gate is removed, so the mechanism does
-what it says. Whether it holds a collection clean at ten thousand pages is a
-claim about scale, and this has run on forty-one files. The numbers in this
-file come from that vault. Finding the limits is what a second pair of hands
-would be for.
+what it says.
+
+Two claims hide under "does it hold at scale", and they are not the same. The
+self-feeding loop is closed structurally rather than statistically — a derived
+page cannot add a concept, and a concept page cannot be written from derived
+material — and neither rule weakens as the collection grows. What is genuinely
+unknown at ten thousand pages is a different class of problem: a collection
+whose sources are weak, or whose summaries are too thin to carry the rung that
+is their whole purpose. This has run on forty-one files, the numbers in this
+file come from that vault, and finding those limits is what a second pair of
+hands would be for.
 
 ## Why it is built this way
 
