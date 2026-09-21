@@ -44,13 +44,14 @@ across them, so nothing drifts across them either — a layer cannot be
 corrupted by what a previous layer inferred, only by what it verifiably
 produced.
 
-**It stays small on purpose, and that is the token story.** Every page is read
-in its own context rather than ten in one. Only verified passages cross
-between layers, so the planner sees 150–300 tokens per page instead of
-thousands. A large document is read in overlapping windows, which is the shape
-that usually costs a small model its grip on the whole; here the summary layer
-carries the whole while the windows carry the detail, so neither has to do
-both.
+**It stays small on purpose, and that is the token story.** The analysis pass
+reads each page in its own clean context — one model, one read, two structured
+outputs — rather than ten pages in one window. Nothing from that pass reaches
+the conversation whole: at the first rung the model is handed one summary line
+per hit saying what that page is, not the page. A large document is read in
+overlapping windows, which is the shape that usually costs a small model its
+grip on the whole; here the summary layer carries the whole while the windows
+carry the detail, so neither has to do both.
 
 The rung structure is where that adds up. Search stops at a summary layer —
 one line per hit saying what that page is, about 75 tokens for five hits — and
@@ -117,7 +118,7 @@ not find it, and would genuinely like to be shown otherwise.
 That cuts both ways. Novel means untested by anyone else. Every gate here is
 covered by a test that fails when the gate is removed, so the mechanism does
 what it says. Whether it holds a collection clean at ten thousand pages is a
-claim about scale, and this has run on forty-six files. The numbers in this
+claim about scale, and this has run on forty-one files. The numbers in this
 file come from that vault. Finding the limits is what a second pair of hands
 would be for.
 
@@ -333,10 +334,12 @@ about whether what you saved was right.
 **Maintenance does not run during a conversation.** The analysis model and the
 conversation model do not fit on a card this size at once, so a pass evicts
 whatever is loaded. It runs overnight, on a timer, and surfaces itself through the health
-line rather than interrupting. It is not slow — about 12 seconds a page; seven
-pages took 139 seconds and two took 30 on the last passes. It was slow once:
-with the thinking block on, the model produced 5620 tokens for a two-field
-JSON object, and turning it off took generation from 184 seconds to 2.5.
+line rather than interrupting. It is not slow — about 12 seconds of model time
+on a page. A whole pass costs more than the reading, because it also embeds
+what it just analysed: seven pages took 139 seconds and two took 37 on the
+last passes. It was slow once: with the thinking block on, the model produced
+5620 tokens for a two-field JSON object, and turning it off took generation
+from 184 seconds to 2.5.
 
 **`write`, `relocate` and `remove` are real, and there is no
 authentication.** See the security note below. The index does refuse one
@@ -344,12 +347,12 @@ thing on its own: if every page disappears at once it declines to delete
 anything, because that is an unmounted drive rather than an edit, and a real
 emptying is recovered with an explicit rebuild.
 
-**The vault this runs on is small.** 46 files — see *What is unproven* above.
+**The vault this runs on is small.** 41 files — see *What is unproven* above.
 
 ## How it is meant to be used
 
 This describes the design, not experience of it. The system is days old and
-the vault holds 46 files: 33 under `sources/`, 7 under `conversations/`, one
+the vault holds 41 files: 33 under `sources/`, 7 under `conversations/`, one
 note, and `wiki/` empty — the maintenance pass has not yet written a concept
 page.
 
@@ -489,10 +492,13 @@ The context window matters about as much as the model does: the 4B at 120k
 costs what the 9B costs at 35k. That is why the table above is a record of
 measurements rather than a recommendation.
 
-**On a 4 GB card** the 4B model at 35000 fits with room to spare, and it can
-take all three roles. The conversation gets worse — a 4B answering is not a
-9B answering — but nothing about the design changes, because the gates are in
-the code rather than in the model's judgement.
+**On a 4 GB card** the 4B model at 35000 fits, but only just — 3.7 GB of 4 GB,
+with the desktop off the card. It can take all three roles with one real loss:
+the summary role is specified at 120000 so a document arrives whole, and at
+35000 a long page no longer does. Summaries of short pages are unaffected. The
+conversation gets worse too — a 4B answering is not a 9B answering — but
+nothing about the design changes, because the gates are in the code rather
+than in the model's judgement.
 
 **On a bigger card, spend it on the conversation and nowhere else.** That is
 the one role where a better model produces a better result. On 24 GB a Q4
@@ -508,7 +514,7 @@ work more slowly and no more correctly. The 9B already scores its own output
 past every gate; the gates are what decide, not the model's judgement.
 
 More context is not automatically better either. The conversation model in use
-holds up to about 32k and degrades past it, so the headroom goes into fitting
+holds up to about 35k and degrades past it, so the headroom goes into fitting
 the model comfortably rather than into a larger window. Measure where yours
 starts to drift.
 
@@ -664,7 +670,7 @@ after the other, not per page.
 is worth knowing before a first run of unknown length. The folders the system
 uses — `notes/`, `wiki/`, `conversations/`, `sources/` — are created when
 something is first written to them, so nothing here needs a prepared vault.
-Step 4 makes them up front anyway, for a reason that belongs to Obsidian
+Step 1 makes them up front anyway, for a reason that belongs to Obsidian
 rather than to this.
 
 ## Open WebUI
@@ -783,12 +789,13 @@ only lists its strengths is not telling you much.
   modules from the cache as it loads.
 - The transcript froze on its first write and stayed frozen.
 
-One conclusion in this file was withdrawn rather than fixed. The 253 seconds
-above were once used to argue for a smaller analysis model; with the cause
-still unknown, model size was never established as the variable, so the
-argument went. The lesson that replaced it is duller and more useful: report
-load, prefill and generation separately. Collapsing them into one total
-produced three wrong diagnoses in a row.
+One conclusion in this file was withdrawn rather than fixed. An early field
+test measured about 253 seconds a page, taken through Open WebUI, and that
+figure was once used to argue for a smaller analysis model; the cause of it
+was never established, so model size was never established as the variable
+either, and the argument went. The lesson that replaced it is duller and more
+useful: report load, prefill and generation separately. Collapsing them into
+one total produced three wrong diagnoses in a row.
 
 ## Tests
 
@@ -809,6 +816,13 @@ take minutes.
 [The Searcher](https://github.com/farukhanci/the-searcher) is a separate
 service that researches a question on the web and writes verified passages
 into the vault's `sources/` directory. Neither repository imports the other.
+
+It writes there only once it is pointed at this vault. Its `SEARCHER_OUTPUT`
+defaults to `$SENTINEL_VAULT/sources`, and its `SENTINEL_VAULT` defaults to a
+directory of mine rather than to whatever `--vault` names here — so set
+`SENTINEL_VAULT` to that same vault, or set `SEARCHER_OUTPUT` directly at its
+`sources/`. Left alone, research is written somewhere this is not reading, the
+run reports success, and nothing says otherwise.
 
 What joins them is the system prompt, which describes `research` alongside
 the seven vault primitives and says when each applies: the vault first, the
