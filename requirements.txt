@@ -5,6 +5,12 @@ numpy
 onnxruntime
 tokenizers
 
+# The `hf` CLI, for the one download in step 1 of the README. It arrives
+# anyway as a dependency of tokenizers; it is named here because step 1 calls
+# it directly, and a transitive dependency that drops out takes the install
+# step with it.
+huggingface_hub
+
 # Frontmatter.
 PyYAML
 

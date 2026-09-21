@@ -423,12 +423,14 @@ subject, and it is left to the person.
 On a bare Debian or Ubuntu, the system packages come first:
 
 ```bash
-sudo apt install git python3 python3-venv python3-pip docker.io
+sudo apt update && sudo apt install git python3 python3-venv python3-pip \
+    curl docker.io
 sudo usermod -aG docker $USER   # then log out and back in
 ```
 
-The Docker part is only needed for Open WebUI. Without the group change every
-`docker` command fails on a permission error at the socket.
+The Docker part is only needed for Open WebUI, and `curl` is what step 2
+fetches the Ollama installer with. Without the group change every `docker`
+command fails on a permission error at the socket.
 
 On Windows, run it under WSL2 and follow the Linux instructions as written —
 the systemd units, the timer and the Docker paths all work there unchanged.
