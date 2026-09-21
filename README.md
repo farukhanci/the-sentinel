@@ -416,7 +416,7 @@ subject, and it is left to the person.
 - [Ollama](https://ollama.com) with a tool-calling model
 - A vault — any directory of markdown files with frontmatter. Nothing here
   needs [Obsidian](https://obsidian.md) running, but one thing needs it
-  installed; see step 4 below
+  installed; see step 3 below
 - multilingual-e5-small as ONNX, on disk
 - A GPU with 4 GB or more; embeddings run on the CPU, and the measured numbers are under Models below
 
@@ -451,7 +451,7 @@ forces a full re-embed.
 Context size is a per-model measurement, not a constant. `CONTEXT_TOKENS` in
 `harness.py` is 17000, the figure the design was sized around; in practice
 17000 gave CUDA OOM on one model and another runs at 35000. What each takes
-is measured under Models below; the method for finding your own is in step 5.
+is measured under Models below; the method for finding your own is in step 4.
 
 ## Models
 
@@ -560,7 +560,7 @@ standing on that limit so it stays visible.
 
 ## Setup
 
-### 1. The package
+### 1. Install
 
 ```bash
 git clone https://github.com/farukhanci/the-sentinel
@@ -568,7 +568,28 @@ cd the-sentinel
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+hf download intfloat/multilingual-e5-small \
+    onnx/model.onnx tokenizer.json \
+    --local-dir models/multilingual-e5-small
+
+mkdir -p ~/obsidian/YourVault/{notes,wiki,conversations,sources}
 ```
+
+Two lines there go beyond the usual Python install.
+
+The embedding model is two files — the ONNX graph and the tokenizer — rather
+than the whole repository, which would also pull PyTorch weights that go
+unused; `hf` came in with the requirements. It lands inside the repository on
+purpose: Open WebUI runs in a container with the repository mounted into it,
+so a model that sits here is visible there without a second mount to
+remember. `models/` is gitignored. The loader accepts `<dir>/onnx/model.onnx`
+or `<dir>/model.onnx`, with `tokenizer.json` beside it either way, and says
+which one is missing if one is.
+
+The vault folders would be created anyway, the first time something is
+written into each. They are made now because the Obsidian setting in step 3
+is a folder picker, and on an empty vault there is nothing to pick.
 
 ### 2. Ollama and the models
 
@@ -583,37 +604,9 @@ ollama pull qwen3.5-4b-xl                                # summaries
 Substitute your own — any tool-calling model works. Ollama listens on
 `http://localhost:11434`, which is where this expects to find it.
 
-### 3. The embedding model
+### 3. Obsidian
 
-Two files are needed: the ONNX graph and the tokenizer. Downloading the whole
-repository would also pull PyTorch weights that go unused. `huggingface_hub`
-came in with the requirements above, so `hf` is already on the path.
-
-```bash
-hf download intfloat/multilingual-e5-small \
-    onnx/model.onnx tokenizer.json \
-    --local-dir models/multilingual-e5-small
-```
-
-Inside the repository on purpose. Open WebUI runs in a container and the
-repository is mounted into it, so a model that sits here is visible there
-without a second mount to remember. `models/` is gitignored.
-
-The loader accepts `<dir>/onnx/model.onnx` or `<dir>/model.onnx`, with
-`tokenizer.json` beside it either way, and says which one is missing if one is.
-
-### 4. The vault
-
-Any directory will do. The system creates its folders the first time it
-writes into one, but make them now anyway — the Obsidian setting below is a
-folder picker, and on an empty vault there is nothing to pick:
-
-```bash
-mkdir -p ~/obsidian/YourVault/{notes,wiki,conversations,sources}
-```
-
-That is enough for everything except one thing, and the exception is worth
-setting up now. A concept the sources define gets written by the maintenance
+Everything above works without it, except one thing worth setting up now. A concept the sources define gets written by the maintenance
 pass on its own. A concept you want a page for *before* that happens is
 created by hand — and the way you do it is to click the faded link in
 [Obsidian](https://obsidian.md) and let it make the file, because the model
@@ -627,7 +620,7 @@ existence follows it — as long as the link is a plain name, which the ones
 this system writes are. A link with a folder in it (`[[wiki/thing]]`) ignores
 the setting and goes where the link says instead.
 
-### 5. Talk to the vault
+### 4. Talk to the vault
 
 ```bash
 python3 -m sentinel.chat \
@@ -706,7 +699,7 @@ and enable it for the model you talk to.
 Everything else is configured through that tool's valves — the gear icon next
 to it in the tools list. The paths there are as the **container** sees them,
 not the host: with the mounts above the vault is `/vault`, and the embedding
-model is `/sentinel/models/multilingual-e5-small`, which is why step 3 put it
+model is `/sentinel/models/multilingual-e5-small`, which is why step 1 put it
 inside the repository. Leave the index path empty unless you have a reason —
 empty means the tool derives it the same way every other entry point does,
 and a second copy of that path is how the index once split in two.
